@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALU纯硬件拨码模拟器 V4 (100%物理版)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            color: #eceff1;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            background: #1e272e;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.9);
+            max-width: 1050px;
+            width: 100%;
+            border: 2px solid #37474f;
+        }
+        h2 { margin-top: 0; color: #80cbc4; text-align: center; border-bottom: 2px solid #37474f; padding-bottom: 15px;}
+        
+        #conflict-warning {
+            display: none;
+            background-color: #d32f2f;
+            color: white;
+            text-align: center;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 20px;
+            animation: blink 0.6s infinite alternate;
+        }
+        @keyframes blink { from { opacity: 1; } to { opacity: 0.5; } }
+
+        /* 布局 */
+        .hardware-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .panel {
+            background: #263238;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #37474f;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
+        }
+        .panel h3 { margin-top: 0; font-size: 15px; color: #ffcc80; text-align: center; margin-bottom: 15px;}
+
+        /* 拨码开关通用样式 */
+        .dip-switch-area {
+            background: #111;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #000;
+        }
+        .dip-monitor {
+            text-align: center; color: #4dd0e1; font-family: monospace;
+            font-size: 20px; font-weight: bold; margin-bottom: 15px;
+            background: #000; padding: 8px; border-radius: 4px; border: 1px solid #222;
+        }
+        .dip-groups { display: flex; justify-content: space-between; }
+        .nibble-group {
+            display: flex; gap: 6px; background: #222;
+            padding: 8px; border-radius: 6px; border: 1px solid #000;
+        }
+        .dip-single { display: flex; flex-direction: column; align-items: center; }
+        .dip-btn {
+            width: 24px; height: 45px; background: #78909c;
+            border: 2px solid #000; border-radius: 4px; cursor: pointer;
+            position: relative; box-shadow: inset 0 0 8px rgba(0,0,0,0.6);
+            transition: background 0.1s;
+        }
+        .dip-btn.data.active { background: #ef5350; } /* 数据开关为红色 */
+        .dip-btn.ctrl.active { background: #ba68c8; } /* 指令开关为紫色 */
+        
+        .dip-btn::after {
+            content: ''; position: absolute; width: 100%; height: 50%;
+            background: #fff; opacity: 0.35; top: 0; left: 0; border-radius: 2px 2px 0 0;
+        }
+        .dip-btn.active::after { top: auto; bottom: 0; border-radius: 0 0 2px 2px; }
+        .dip-label { font-size: 11px; color: #b0bec5; margin-top: 6px; font-family: monospace; font-weight: bold;}
+
+        /* 控制行 */
+        .control-row {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 10px; background: #1e272e; padding: 8px 12px;
+            border-radius: 6px; border: 1px solid #2f3640;
+        }
+        label { font-size: 13px; font-weight: bold; color: #b0bec5; }
+        select {
+            padding: 6px; font-size: 14px; border: 1px solid #222;
+            border-radius: 4px; background: #eceff1; color: #000;
+            outline: none; text-align: center; font-weight: bold;
+        }
+        
+        .toggle-switch { cursor: pointer; width: 140px; }
+        .door-open { background: #66bb6a; color: #000; border-color: #2e7d32;}
+        .door-closed { background: #ef5350; color: #fff; border-color: #c62828;}
+        .ldr-on { background: #29b6f6; color: #000; }
+        .ldr-off { background: #78909c; color: #fff; }
+
+        .status-screen {
+            background: #000; color: #00e676; font-family: 'Courier New', Courier, monospace;
+            padding: 8px; border-radius: 4px; text-align: center;
+            font-size: 18px; font-weight: bold; border: 2px inset #444; min-width: 80px;
+        }
+        .alu-formula {
+            color: #ce93d8; font-size: 20px; text-align: center; margin-top: 15px;
+            font-family: monospace; background: #000; padding: 10px; border-radius: 6px;
+            border: 1px solid #333; font-weight: bold; letter-spacing: 1px;
+        }
+
+        .pulse-btn {
+            background-color: #fbc02d; color: #000; border: 2px solid #f57f17;
+            border-radius: 8px; padding: 15px; font-size: 18px; font-weight: bold;
+            cursor: pointer; width: 100%; box-shadow: 0 5px 0 #f57f17;
+            transition: all 0.1s; margin-bottom: 20px;
+        }
+        .pulse-btn:active { transform: translateY(5px); box-shadow: 0 0 0 #f57f17; }
+
+        /* 数据总线 LED 显示区 */
+        .bus-container {
+            background: #0a0a0a; padding: 20px; border-radius: 10px;
+            border: 2px solid #37474f; text-align: center;
+        }
+        .bus-title { color: #81c784; margin-bottom: 15px; font-weight: bold; font-size: 16px;}
+        .led-grid { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+        .led-box { display: flex; flex-direction: column; align-items: center; }
+        .led {
+            width: 22px; height: 22px; border-radius: 50%; background: #222;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.9); margin-bottom: 5px; border: 1px solid #000;
+        }
+        .led.on { background: #00e676; box-shadow: 0 0 15px #00e676, inset 0 1px 2px rgba(255,255,255,0.4); }
+        .led.hz { background: #333; opacity: 0.5; }
+        .led.conflict { background: #f44336; box-shadow: 0 0 15px #f44336; animation: blink 0.3s infinite;}
+        .z-led.on { background: #ffca28; box-shadow: 0 0 15px #ffca28, inset 0 1px 2px rgba(255,255,255,0.4); }
+        .led-label { font-size: 10px; color: #78909c; font-family: monospace; }
+        .bus-hex { font-size: 28px; font-family: monospace; color: #fff; margin-top: 15px; font-weight: bold;}
+        
+        .cy-container {
+            display: inline-block; margin-left: 20px; padding: 15px 20px;
+            border: 2px dashed #ff9800; border-radius: 8px; background: #3e2723; vertical-align: top;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🧮 实验一：纯硬件拨码 ALU 模拟器 (V4 100%纯物理版)</h2>
+    
+    <div id="conflict-warning">⚠️ 严重警告：总线冲突！输入门(C-G)与输出门(ALU-G)不可同时打开！</div>
+
+    <div class="hardware-layout">
+        <div class="panel">
+            <h3>🚪 数据输入与大门控制</h3>
+            
+            <div class="dip-switch-area">
+                <div class="dip-monitor">当前拨码状态: <span id="dip-hex-display">1234</span> H</div>
+                <div class="dip-groups" id="dip-container">
+                    </div>
+            </div>
+
+            <div class="control-row">
+                <label>C-G (数据输入门)</label>
+                <select id="cg-switch" class="toggle-switch door-closed">
+                    <option value="1" selected>1 (关门 阻断输入)</option>
+                    <option value="0">0 (开门 送数据上路)</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label>ALU-G (运算输出门)</label>
+                <select id="alug-switch" class="toggle-switch door-closed">
+                    <option value="1" selected>1 (关门 阻断输出)</option>
+                    <option value="0">0 (开门 看计算结果)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>🧑‍🍳 寄存器 (服务员) 状态</h3>
+            <div class="control-row">
+                <label>LDR1 (一号快门)</label>
+                <select id="ldr1-switch" class="toggle-switch ldr-off" style="width: 100px;">
+                    <option value="0" selected>0 (闭眼)</option>
+                    <option value="1">1 (准备抓拍)</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label>LT1 内部数据：</label>
+                <div class="status-screen" id="lt1-display">0000</div>
+            </div>
+            <div class="control-row" style="margin-top: 15px;">
+                <label>LDR2 (二号快门)</label>
+                <select id="ldr2-switch" class="toggle-switch ldr-off" style="width: 100px;">
+                    <option value="0" selected>0 (闭眼)</option>
+                    <option value="1">1 (准备抓拍)</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label>LT2 内部数据：</label>
+                <div class="status-screen" id="lt2-display">0000</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-bottom: 20px;">
+        <h3>🧠 74LS181 ALU 运算指令拨码控制</h3>
+        
+        <div style="display: flex; justify-content: center; gap: 40px; padding: 10px 0;">
+            <div class="dip-single">
+                <div class="dip-btn ctrl" id="ctrl-m" onclick="toggleCtrl('m')"></div>
+                <div class="dip-label" style="color: #ce93d8;">M</div>
+            </div>
+
+            <div class="nibble-group">
+                <div class="dip-single">
+                    <div class="dip-btn ctrl active" id="ctrl-s3" onclick="toggleCtrl('s3')"></div>
+                    <div class="dip-label" style="color: #ce93d8;">S3</div>
+                </div>
+                <div class="dip-single">
+                    <div class="dip-btn ctrl" id="ctrl-s2" onclick="toggleCtrl('s2')"></div>
+                    <div class="dip-label" style="color: #ce93d8;">S2</div>
+                </div>
+                <div class="dip-single">
+                    <div class="dip-btn ctrl" id="ctrl-s1" onclick="toggleCtrl('s1')"></div>
+                    <div class="dip-label" style="color: #ce93d8;">S1</div>
+                </div>
+                <div class="dip-single">
+                    <div class="dip-btn ctrl active" id="ctrl-s0" onclick="toggleCtrl('s0')"></div>
+                    <div class="dip-label" style="color: #ce93d8;">S0</div>
+                </div>
+            </div>
+
+            <div class="dip-single">
+                <div class="dip-btn ctrl active" id="ctrl-cn" onclick="toggleCtrl('cn')"></div>
+                <div class="dip-label" style="color: #ce93d8;">Cn</div>
+            </div>
+        </div>
+
+        <div class="alu-formula" id="alu-formula">实时解析运算公式...</div>
+    </div>
+
+    <button class="pulse-btn" id="pulseBtn">⚡ 按下快门 (发送单步脉冲 T+)</button>
+
+    <div style="text-align: center;">
+        <div class="bus-container" style="display: inline-block; width: 70%;">
+            <div class="bus-title" id="bus-status-title">中央大马路 (Data Bus)</div>
+            <div class="led-grid" id="led-grid"></div>
+            <div class="bus-hex" id="busHex">----</div>
+        </div>
+        
+        <div class="cy-container">
+            <div class="bus-title" style="color: #ff9800; font-size: 15px; margin-bottom: 10px;">算术进位输出</div>
+            <div class="led-box">
+                <div class="led z-led" id="led-cy"></div>
+                <div class="led-label" style="color:#ffcc80; font-weight:bold; font-size: 12px;">CY 灯</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 数据物理拨码区 (默认设置 1234H) ---
+    // 1234H = 0001 0010 0011 0100
+    let dipSwitches = [
+        0,0,0,1, // D15-D12 (1)
+        0,0,1,0, // D11-D8  (2)
+        0,0,1,1, // D7-D4   (3)
+        0,1,0,0  // D3-D0   (4)
+    ];
+    
+    // --- 指令物理拨码区 (默认设置 M=0, S=1001[加法], Cn=1) ---
+    let ctrlState = { m: 0, s3: 1, s2: 0, s1: 0, s0: 1, cn: 1 };
+    
+    let LT1 = 0; 
+    let LT2 = 0; 
+    let aluOut = 0; 
+    let aluCarryOut = 0; 
+    let busState = { mode: 'HZ', val: 0 };
+
+    // 初始化 16位数据拨码 (D15 -> D0)
+    const dipContainer = document.getElementById('dip-container');
+    for (let group = 0; group < 4; group++) {
+        const nibbleDiv = document.createElement('div');
+        nibbleDiv.className = 'nibble-group';
+        for (let bit = 3; bit >= 0; bit--) {
+            const i = (3 - group) * 4 + bit; 
+            const singleDiv = document.createElement('div');
+            singleDiv.className = 'dip-single';
+            
+            const btn = document.createElement('div');
+            btn.className = 'dip-btn data';
+            if (dipSwitches[15-i] === 1) btn.classList.add('active'); // 初始化颜色
+            btn.id = 'dip-' + i;
+            
+            btn.onclick = () => {
+                dipSwitches[15-i] = dipSwitches[15-i] ? 0 : 1;
+                btn.classList.toggle('active');
+                updateDipHex();
+            };
+
+            const label = document.createElement('div');
+            label.className = 'dip-label'; label.innerText = i;
+            singleDiv.appendChild(btn); singleDiv.appendChild(label);
+            nibbleDiv.appendChild(singleDiv);
+        }
+        dipContainer.appendChild(nibbleDiv);
+    }
+
+    function updateDipHex() {
+        let val = 0;
+        for (let i = 0; i < 16; i++) {
+            if (dipSwitches[15-i]) val += Math.pow(2, i);
+        }
+        document.getElementById('dip-hex-display').innerText = val.toString(16).toUpperCase().padStart(4, '0');
+        resolveBus(); 
+    }
+
+    // 处理控制拨码点击事件
+    function toggleCtrl(key) {
+        ctrlState[key] = ctrlState[key] ? 0 : 1;
+        const btn = document.getElementById('ctrl-' + key);
+        if (ctrlState[key]) btn.classList.add('active');
+        else btn.classList.remove('active');
+        resolveBus(); // 改变指令，ALU立刻重新计算
+    }
+
+    // 初始化总线LED
+    const ledGrid = document.getElementById('led-grid');
+    for (let i = 15; i >= 0; i--) {
+        const box = document.createElement('div');
+        box.className = 'led-box';
+        const led = document.createElement('div');
+        led.className = 'led'; led.id = 'led-' + i;
+        const label = document.createElement('div');
+        label.className = 'led-label'; label.innerText = 'D' + i;
+        box.appendChild(led); box.appendChild(label);
+        ledGrid.appendChild(box);
+    }
+
+    // ALU 逻辑 (读取物理拨码状态)
+    function computeALU() {
+        const M = ctrlState.m;
+        const S = (ctrlState.s3 << 3) | (ctrlState.s2 << 2) | (ctrlState.s1 << 1) | ctrlState.s0;
+        const Cn = ctrlState.cn;
+        
+        let A = LT1 & 0xFFFF; let B = LT2 & 0xFFFF;
+        let invB = (~B) & 0xFFFF;
+        let F = 0; let formula = ""; aluCarryOut = 0; 
+
+        if (M === 1) { // 逻辑
+            switch(S) {
+                case 0: F = (~A); formula = "F = /A (A取反)"; break;
+                case 1: F = ~(A | B); formula = "F = /(A+B) (或非)"; break;
+                case 2: F = (~A) & B; formula = "F = /A*B"; break;
+                case 3: F = 0; formula = "F = 0 (强制清零)"; break;
+                case 4: F = ~(A & B); formula = "F = /(A*B) (与非)"; break;
+                case 5: F = ~B; formula = "F = /B (B取反)"; break;
+                case 6: F = A ^ B; formula = "F = A ⊕ B (异或)"; break;
+                case 7: F = A & invB; formula = "F = A*/B"; break;
+                case 8: F = (~A) | B; formula = "F = /A+B"; break;
+                case 9: F = ~(A ^ B); formula = "F = A ⊙ B (同或)"; break;
+                case 10: F = B; formula = "F = B (搬运B)"; break;
+                case 11: F = A & B; formula = "F = A*B (逻辑与)"; break;
+                case 12: F = 0xFFFF; formula = "F = 1111 (全1)"; break;
+                case 13: F = A | invB; formula = "F = A+/B"; break;
+                case 14: F = A | B; formula = "F = A+B (逻辑或)"; break;
+                case 15: F = A; formula = "F = A (搬运A)"; break;
+            }
+        } else { // 算术
+            let res = 0;
+            switch(S) {
+                case 0: res = A; formula = "A"; break;
+                case 1: res = A | B; formula = "(A|B)"; break;
+                case 2: res = A | invB; formula = "(A|/B)"; break;
+                case 3: res = 0xFFFF; formula = "-1"; break;
+                case 4: res = A + (A & invB); formula = "A + (A*/B)"; break;
+                case 5: res = (A | B) + (A & invB); formula = "(A|B) + (A*/B)"; break;
+                case 6: res = A + invB; formula = "A 减 B 减 1"; break; 
+                case 7: res = (A & invB) + 0xFFFF; formula = "(A*/B) 减 1"; break;
+                case 8: res = A + (A & B); formula = "A + (A*B)"; break;
+                case 9: res = A + B; formula = "A 加 B"; break;
+                case 10: res = (A | invB) + (A & B); formula = "(A|/B) + (A*B)"; break;
+                case 11: res = (A & B) + 0xFFFF; formula = "(A*B) 减 1"; break;
+                case 12: res = A + A; formula = "A 加 A (乘2)"; break;
+                case 13: res = (A | B) + A; formula = "(A|B) 加 A"; break;
+                case 14: res = (A | invB) + A; formula = "(A|/B) 加 A"; break;
+                case 15: res = A + 0xFFFF; formula = "A 减 1"; break;
+            }
+            let carryIn = (Cn === 0) ? 1 : 0; 
+            let full_F = res + carryIn; 
+            
+            if (full_F > 0xFFFF) aluCarryOut = 1; 
+            F = full_F & 0xFFFF; 
+            formula += (Cn === 0) ? " (再加 1)" : "";
+            formula = "运算公式：F = " + formula;
+        }
+        aluOut = F;
+        
+        let hexCode = S.toString(16).toUpperCase();
+        document.getElementById('alu-formula').innerHTML = `<span style="color:#b0bec5; font-size:14px;">(口诀十六进制: ${hexCode})</span> <br> ${formula}`;
+    }
+
+    function updateUIColors() {
+        ['cg-switch', 'alug-switch'].forEach(id => {
+            const el = document.getElementById(id);
+            el.className = (el.value === '0') ? 'toggle-switch door-open' : 'toggle-switch door-closed';
+        });
+        ['ldr1-switch', 'ldr2-switch'].forEach(id => {
+            const el = document.getElementById(id);
+            el.className = (el.value === '1') ? 'toggle-switch ldr-on' : 'toggle-switch ldr-off';
+        });
+        document.getElementById('lt1-display').innerText = LT1.toString(16).toUpperCase().padStart(4, '0');
+        document.getElementById('lt2-display').innerText = LT2.toString(16).toUpperCase().padStart(4, '0');
+    }
+
+    function resolveBus() {
+        computeALU(); 
+        
+        const cg = document.getElementById('cg-switch').value;
+        const alug = document.getElementById('alug-switch').value;
+
+        if (cg === '0' && alug === '0') {
+            busState.mode = 'CONFLICT';
+        } else if (cg === '0' && alug === '1') {
+            busState.mode = 'INPUT';
+            let dipVal = 0;
+            for(let i=0; i<16; i++) {
+                if(dipSwitches[15-i]) dipVal += Math.pow(2, i);
+            }
+            busState.val = dipVal;
+        } else if (cg === '1' && alug === '0') {
+            busState.mode = 'ALU';
+            busState.val = aluOut;
+        } else {
+            busState.mode = 'HZ';
+            busState.val = 0;
+        }
+        renderBus();
+    }
+
+    function renderBus() {
+        updateUIColors();
+        const warning = document.getElementById('conflict-warning');
+        const title = document.getElementById('bus-status-title');
+        const hexDisplay = document.getElementById('busHex');
+        const cyLed = document.getElementById('led-cy');
+        let val = busState.val;
+
+        for (let i = 0; i < 16; i++) {
+            const led = document.getElementById('led-' + i);
+            led.className = 'led'; 
+            if (busState.mode === 'CONFLICT') led.classList.add('conflict');
+            else if (busState.mode === 'HZ') led.classList.add('hz');
+            else if ((val >> i) & 1) led.classList.add('on');
+        }
+
+        if (busState.mode === 'ALU' && aluCarryOut === 1) cyLed.classList.add('on');
+        else cyLed.classList.remove('on');
+
+        if (busState.mode === 'CONFLICT') {
+            warning.style.display = 'block'; title.style.color = "#f44336";
+            title.innerText = "🚨 致命错误：总线冲突！"; hexDisplay.innerText = "ERROR";
+        } else {
+            warning.style.display = 'none';
+            if (busState.mode === 'HZ') {
+                title.innerText = "中央大马路 (Data Bus) - 高阻态 (空闲)"; title.style.color = "#78909c";
+                hexDisplay.innerText = "----";
+            } else if (busState.mode === 'INPUT') {
+                title.innerText = "中央大马路 (Data Bus) - 被【红色物理拨码】占用"; title.style.color = "#66bb6a";
+                hexDisplay.innerText = val.toString(16).toUpperCase().padStart(4, '0') + " H";
+            } else if (busState.mode === 'ALU') {
+                title.innerText = "中央大马路 (Data Bus) - 显示【ALU 运算结果】"; title.style.color = "#ce93d8";
+                hexDisplay.innerText = val.toString(16).toUpperCase().padStart(4, '0') + " H";
+            }
+        }
+    }
+
+    document.getElementById('pulseBtn').addEventListener('click', () => {
+        if (busState.mode === 'CONFLICT') return; 
+        const ldr1 = document.getElementById('ldr1-switch').value;
+        const ldr2 = document.getElementById('ldr2-switch').value;
+        let currentBusVal = (busState.mode === 'HZ') ? 0 : busState.val;
+
+        if (ldr1 === '1') LT1 = currentBusVal;
+        if (ldr2 === '1') LT2 = currentBusVal;
+        resolveBus();
+    });
+
+    // 绑定大门事件
+    ['cg-switch', 'alug-switch', 'ldr1-switch', 'ldr2-switch'].forEach(id => { 
+        document.getElementById(id).addEventListener('change', resolveBus); 
+    });
+
+    // 页面加载完成初始化
+    updateDipHex();
+</script>
+</body>
+</html>
