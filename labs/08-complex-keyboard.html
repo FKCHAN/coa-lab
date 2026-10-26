@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <title>实验八：复杂模型机组成原理实验 (键盘操作修复版)</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --panel-bg: #1e293b;
+            --screen-bg: #000000;
+            --text-main: #f8fafc;
+            --led-red: #ef4444;
+            --led-green: #10b981;
+            --led-blue: #3b82f6;
+            --btn-bg: #334155;
+            --btn-active: #475569;
+            --border-color: #475569;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: var(--panel-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            border: 2px solid var(--border-color);
+            box-sizing: border-box;
+        }
+        h2 { text-align: center; color: var(--led-blue); margin-top: 0; border-bottom: 2px dashed var(--border-color); padding-bottom: 10px;}
+        
+        .layout { display: flex; flex-wrap: wrap; gap: 20px; }
+        .col-left { flex: 1 1 300px; display: flex; flex-direction: column; gap: 15px; }
+        .col-right { flex: 1.5 1 400px; display: flex; flex-direction: column; gap: 15px; }
+
+        /* 主显示屏 */
+        .main-screen-container { background: #111; padding: 15px; border-radius: 8px; border: 3px inset #333; text-align: center; }
+        .main-screen { font-family: 'Courier New', Courier, monospace; font-size: 32px; font-weight: bold; color: var(--led-red); text-shadow: 0 0 10px var(--led-red); letter-spacing: 2px; min-height: 40px; }
+        .sub-screen { color: var(--led-green); font-size: 14px; margin-top: 5px; min-height: 20px; }
+
+        /* 硬件开关区 */
+        .hardware-panel { background: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); display: flex; justify-content: space-around; align-items: center; }
+        .switch-group { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .switch { width: 24px; height: 48px; background: #333; border-radius: 4px; position: relative; cursor: pointer; border: 2px solid #000; }
+        .switch-toggle { position: absolute; width: 100%; height: 50%; background: var(--led-red); bottom: 0; transition: 0.1s; border-radius: 2px; }
+        .switch.on .switch-toggle { bottom: 50%; background: var(--led-green); }
+        .switch-label { font-size: 12px; font-weight: bold; color: #cbd5e1; }
+        .clr-btn { background: var(--led-red); color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 0 #991b1b; }
+        .clr-btn:active { transform: translateY(4px); box-shadow: 0 0 0 #991b1b; }
+
+        /* 键盘区 */
+        .keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); }
+        .key { background: #cbd5e1; color: #0f172a; border: none; border-radius: 6px; padding: 15px 0; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 0 #94a3b8; transition: 0.1s; }
+        .key:active { transform: translateY(4px); box-shadow: 0 0 0 #94a3b8; }
+        .key.cmd { background: #3b82f6; color: white; box-shadow: 0 4px 0 #1d4ed8; font-size: 13px; }
+        .key.reset { background: #f59e0b; color: white; box-shadow: 0 4px 0 #b45309; font-size: 14px; }
+        .key.enter { background: var(--led-green); color: white; box-shadow: 0 4px 0 #047857; }
+
+        /* 内部寄存器监视区 */
+        .cpu-monitor { background: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .reg-box { background: var(--panel-bg); padding: 10px; border-radius: 6px; text-align: center; border: 1px solid var(--border-color); }
+        .reg-title { font-size: 12px; color: #94a3b8; margin-bottom: 5px; }
+        .reg-val { font-family: monospace; font-size: 18px; color: var(--led-green); font-weight: bold; }
+        .disp-box { grid-column: 1 / -1; background: #000; border: 2px solid var(--border-color); padding: 15px; text-align: center; border-radius: 6px; }
+        .disp-val { font-family: 'Courier New', monospace; font-size: 28px; color: var(--led-red); font-weight: bold; letter-spacing: 3px; }
+
+        /* 日志区 */
+        .log-panel { background: #000; color: #cbd5e1; font-family: monospace; font-size: 13px; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); height: 180px; overflow-y: auto; line-height: 1.5; }
+        .log-highlight { color: #facc15; font-weight: bold; }
+        .log-info { color: #38bdf8; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🛠️ 实验八：复杂模型机指令系统 (键盘操作修复版)</h2>
+    
+    <div class="layout">
+        <div class="col-left">
+            <div class="main-screen-container">
+                <div class="main-screen" id="lcd-main">CLASS SELECT</div>
+                <div class="sub-screen" id="lcd-sub">请按照指导书步骤进行操作</div>
+            </div>
+
+            <div class="hardware-panel">
+                <div class="switch-group">
+                    <div class="switch off" id="sw-K1" onclick="toggleK(1)"><div class="switch-toggle"></div></div>
+                    <div class="switch-label">K1</div>
+                </div>
+                <div class="switch-group">
+                    <div class="switch off" id="sw-K2" onclick="toggleK(2)"><div class="switch-toggle"></div></div>
+                    <div class="switch-label">K2</div>
+                </div>
+                <div class="switch-group">
+                    <div class="switch off" id="sw-K3" onclick="toggleK(3)"><div class="switch-toggle"></div></div>
+                    <div class="switch-label">K3</div>
+                </div>
+                <div class="switch-group" style="opacity: 0.5;">
+                    <div class="switch off" id="sw-K4"><div class="switch-toggle"></div></div>
+                    <div class="switch-label">K4(OFF)</div>
+                </div>
+                <button class="clr-btn" onclick="triggerCLR()">CLR 清零</button>
+            </div>
+
+            <div class="keypad">
+                <button class="key" onclick="press('C')">C</button> <button class="key" onclick="press('D')">D</button>
+                <button class="key" onclick="press('E')">E</button> <button class="key" onclick="press('F')">F</button>
+                
+                <button class="key" onclick="press('8')">8</button> <button class="key" onclick="press('9')">9</button>
+                <button class="key" onclick="press('A')">A</button> <button class="key" onclick="press('B')">B</button>
+                
+                <button class="key" onclick="press('4')">4</button> <button class="key" onclick="press('5')">5</button>
+                <button class="key" onclick="press('6')">6</button> <button class="key" onclick="press('7')">7</button>
+                
+                <button class="key" onclick="press('0')">0</button> <button class="key" onclick="press('1')">1</button>
+                <button class="key" onclick="press('2')">2</button> <button class="key" onclick="press('3')">3</button>
+                
+                <button class="key reset" onclick="press('RST')">RESET</button>
+                <button class="key cmd" onclick="press('SEL')">实验选择</button>
+                <button class="key cmd" onclick="press('SINGLE')">单步</button>
+                <button class="key cmd" onclick="press('FULL')">全速</button>
+                
+                <button class="key cmd" style="grid-column: span 2;" onclick="press('CANCEL')">取消</button>
+                <button class="key enter" style="grid-column: span 2;" onclick="press('ENTER')">确认</button>
+            </div>
+        </div>
+
+        <div class="col-right">
+            <div class="cpu-monitor">
+                <div class="reg-box"><div class="reg-title">程序计数器 (PC)</div><div class="reg-val" id="reg-pc">00 H</div></div>
+                <div class="reg-box"><div class="reg-title">指令寄存器 (IR)</div><div class="reg-val" id="reg-ir">0000 H</div></div>
+                <div class="reg-box"><div class="reg-title">通用寄存器 (Ax)</div><div class="reg-val" id="reg-ax">0000 H</div></div>
+                <div class="reg-box"><div class="reg-title">通用寄存器 (Bx)</div><div class="reg-val" id="reg-bx">0000 H</div></div>
+                <div class="reg-box"><div class="reg-title">通用寄存器 (Cx)</div><div class="reg-val" id="reg-cx">0000 H</div></div>
+                <div class="reg-box"><div class="reg-title">移位寄存器 (SREG)</div><div class="reg-val" id="reg-sreg">0000 H</div></div>
+                <div class="disp-box"><div class="reg-title" style="color:var(--led-red);">外部输出设备 (LED数码管)</div><div class="disp-val" id="reg-disp">----</div></div>
+            </div>
+
+            <div class="log-panel" id="log-panel">
+                <span class="log-info">译码器Bug已修复！系统已启动。准备就绪。</span><br>
+                请参考左侧开关和键盘操作步骤。
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let K = { 1: false, 2: false, 3: false };
+    let sysState = 'BOOT'; 
+    let inputBuf = '';
+    
+    let PC = 0, IR = 0;
+    let R = { 0: 0, 1: 0, 2: 0 }; 
+    let DISP = null;
+    let RAM = new Array(256).fill(0);
+    
+    const exp8_code = [
+        0x0048, // 00: IN Ax, KIN
+        0x0005, // 01: MOV Bx, 01H
+        0x0001, // 02: 01H
+        0x0094, // 03: ADD Ax, Bx
+        0x00F0, // 04: ROL Ax
+        0x0082, // 05: MOV Cx, Ax
+        0x0046, // 06: OUT DISP, Cx
+        0x0008, // 07: JMP 00H
+        0x0000  // 08: 00H
+    ];
+
+    function updateLCD(main, sub) {
+        document.getElementById('lcd-main').innerText = main;
+        if(sub !== undefined) document.getElementById('lcd-sub').innerText = sub;
+    }
+
+    function log(msg) {
+        const p = document.getElementById('log-panel');
+        p.innerHTML += `<div>${msg}</div>`;
+        p.scrollTop = p.scrollHeight;
+    }
+
+    function updateRegs() {
+        document.getElementById('reg-pc').innerText = PC.toString(16).toUpperCase().padStart(2, '0') + ' H';
+        document.getElementById('reg-ir').innerText = IR.toString(16).toUpperCase().padStart(4, '0') + ' H';
+        document.getElementById('reg-ax').innerText = R[0].toString(16).toUpperCase().padStart(4, '0') + ' H';
+        document.getElementById('reg-bx').innerText = R[1].toString(16).toUpperCase().padStart(4, '0') + ' H';
+        document.getElementById('reg-cx').innerText = R[2].toString(16).toUpperCase().padStart(4, '0') + ' H';
+        document.getElementById('reg-disp').innerText = DISP !== null ? DISP.toString(16).toUpperCase().padStart(4, '0') : '----';
+    }
+
+    function toggleK(num) {
+        K[num] = !K[num];
+        document.getElementById('sw-K'+num).className = K[num] ? 'switch on' : 'switch off';
+        if (!K[1] && K[2] && !K[3]) log("状态切换: 准备 <span class='log-highlight'>写微代码</span>");
+        else if (!K[1] && !K[2] && K[3]) log("状态切换: 准备 <span class='log-highlight'>读微代码</span>");
+        else if (K[1] && !K[2] && K[3]) log("状态切换: 准备 <span class='log-highlight'>写/运行机器指令</span>");
+    }
+
+    function triggerCLR() {
+        PC = 0; IR = 0;
+        updateRegs();
+        log("🔄 CLR触发：地址寄存器、指令寄存器已清零。PC=00H");
+    }
+
+    function press(key) {
+        if (key === 'RST') {
+            sysState = 'BOOT'; inputBuf = '';
+            updateLCD('CLASS SELECT', '按【实验选择】键');
+            log("<span class='log-info'>系统复位 (RESET)。</span>");
+            return;
+        }
+        
+        switch (sysState) {
+            case 'BOOT':
+                if (key === 'SEL') {
+                    sysState = 'ES_WAIT'; inputBuf = '';
+                    updateLCD('ES--__', '输入 08，按确认');
+                }
+                break;
+                
+            case 'ES_WAIT':
+                if (key === 'ENTER') {
+                    if (inputBuf === '08' || inputBuf === '8') {
+                        updateLCD('ES08', '再按一次确认键');
+                        sysState = 'ES_CONFIRM';
+                    } else {
+                        updateLCD('Error', '实验号错误'); setTimeout(()=>press('RST'), 1000);
+                    }
+                } else if (key.length === 1 && inputBuf.length < 2) {
+                    inputBuf += key; updateLCD('ES--' + inputBuf.padEnd(2, '_'));
+                }
+                break;
+
+            case 'ES_CONFIRM':
+                if (key === 'ENTER') {
+                    if (!K[1] && K[2] && !K[3]) { 
+                        sysState = 'CTL1_WAIT'; inputBuf = ''; updateLCD('CtL1=_', '输入 1, 按确认');
+                    } else if (K[1] && !K[2] && K[3]) { 
+                        sysState = 'CTL2_WAIT'; inputBuf = ''; updateLCD('CtL1=_', '直接按【取消】跳过 CtL1');
+                    }
+                }
+                break;
+
+            case 'CTL1_WAIT':
+                if (key === 'ENTER' && inputBuf === '1') {
+                    sysState = 'UADDR_WAIT'; inputBuf = ''; updateLCD('U_Addr', '输入6位微地址');
+                } else if (key === '1') {
+                    inputBuf = '1'; updateLCD('CtL1_1');
+                }
+                break;
+                
+            case 'UADDR_WAIT':
+                if (key === 'ENTER') {
+                    updateLCD('U_CodE', '输入微代码 (如 007F88)');
+                    sysState = 'UCODE_WAIT'; inputBuf = '';
+                } else if (key.length === 1 && inputBuf.length < 6) {
+                    inputBuf += key; updateLCD(inputBuf);
+                }
+                break;
+                
+            case 'UCODE_WAIT':
+                if (key === 'ENTER') {
+                    updateLCD('PULSE', '按【单步】写入');
+                    sysState = 'UCODE_STEP';
+                } else if (key.length === 1 && inputBuf.length < 6) {
+                    inputBuf += key; updateLCD(inputBuf);
+                }
+                break;
+                
+            case 'UCODE_STEP':
+                if (key === 'SINGLE') {
+                    log(`💾 成功写入微代码。`);
+                    sysState = 'UADDR_WAIT'; inputBuf = ''; updateLCD('U_Addr', '继续输入微地址');
+                }
+                break;
+
+            case 'CTL2_WAIT':
+                if (key === 'CANCEL') {
+                    sysState = 'CTL2_INPUT'; inputBuf = ''; updateLCD('CtL2=_', '输入 1(写指令) 或 3(运行程序)');
+                }
+                break;
+
+            case 'CTL2_INPUT':
+                if (key === 'ENTER') {
+                    if (inputBuf === '1') {
+                        sysState = 'WRITE_RAM_WAIT'; updateLCD('PULSE', '已准备写内存。按【单步】开始。');
+                    } else if (inputBuf === '3') {
+                        sysState = 'RUN_WAIT'; updateLCD('PULSE', '按【CLR清零】后按全速');
+                        for(let i=0; i<exp8_code.length; i++) RAM[i] = exp8_code[i];
+                        log("<span class='log-info'>*提示：已自动装载表8-5测试程序至RAM中。*</span>");
+                    }
+                } else if (key === '1' || key === '3') {
+                    inputBuf = key; updateLCD('CtL2_' + key);
+                }
+                break;
+
+            case 'WRITE_RAM_WAIT':
+                if (key === 'SINGLE') {
+                    sysState = 'WRITE_RAM_DATA'; inputBuf = ''; updateLCD('data', '输入4位机器码');
+                }
+                break;
+
+            case 'WRITE_RAM_DATA':
+                if (key === 'ENTER') {
+                    let val = parseInt(inputBuf, 16);
+                    RAM[PC] = val;
+                    log(`📝 写入: RAM[${PC.toString(16).toUpperCase().padStart(2,'0')}H] = ${val.toString(16).toUpperCase().padStart(4,'0')}H`);
+                    updateLCD('PULSE', '按【单步】提交');
+                    sysState = 'WRITE_RAM_STEP';
+                } else if (key.length === 1 && inputBuf.length < 4) {
+                    inputBuf += key; updateLCD(inputBuf);
+                }
+                break;
+
+            case 'WRITE_RAM_STEP':
+                if (key === 'SINGLE') {
+                    PC++; updateRegs();
+                    sysState = 'WRITE_RAM_DATA'; inputBuf = ''; updateLCD('data', '继续输入');
+                }
+                break;
+
+            case 'RUN_WAIT':
+                if (key === 'SINGLE' || key === 'FULL') {
+                    log("▶️ 开始执行程序...");
+                    executeCPU();
+                }
+                break;
+                
+            case 'DATA_INPUT': 
+                if (key === 'ENTER') {
+                    let val = parseInt(inputBuf, 16);
+                    R[0] = val; 
+                    log(`📥 键盘输入数据: ${val.toString(16).toUpperCase().padStart(4,'0')}H -> Ax`);
+                    updateRegs();
+                    sysState = 'RUN_WAIT';
+                    updateLCD('PULSE', '数据已录入。系统继续执行');
+                    setTimeout(() => executeCPU(), 500); 
+                } else if (key.length === 1 && inputBuf.length < 4) {
+                    inputBuf += key; updateLCD(inputBuf, "输入数据后按确认");
+                }
+                break;
+        }
+    }
+
+    // --- CPU 指令集架构 (ISA) 核心修复 ---
+    function executeCPU() {
+        IR = RAM[PC];
+        log(`[取指] PC=${PC.toString(16).toUpperCase()}H, IR=${IR.toString(16).toUpperCase().padStart(4,'0')}H`);
+        PC++;
+        updateRegs();
+
+        // 核心修复：单字长指令操作码在低8位！
+        let op = IR & 0xFF;          
+        let rs = (op >> 2) & 0x03;   
+        let rd = op & 0x03;          
+        
+        if (op === 0x48) { // IN Ax, KIN
+            log("⏳ 遇到 IN 指令。挂起 CPU，等待用户输入...");
+            sysState = 'DATA_INPUT'; inputBuf = '';
+            updateLCD('dAtA', '请输入测试数据 (例: 1111)');
+            return; // 暂停循环，等待事件触发
+        }
+        else if (op === 0x46) { // OUT DISP, Cx
+            DISP = R[rd];
+            log(`🌟 OUT 指令执行：输出 ${DISP.toString(16).toUpperCase().padStart(4,'0')}H 到数码管`);
+        }
+        else if (op === 0x05) { // MOV Bx, D (0000 01 01)
+            let imm = RAM[PC];
+            R[rd] = imm;
+            log(`[执行] MOV R${rd}, 立即数 ${imm.toString(16).toUpperCase().padStart(4,'0')}H`);
+            PC++; // 取立即数，PC再加一
+        }
+        else if (op === 0x08) { // JMP D (0000 10 00)
+            let dest = RAM[PC];
+            log(`[执行] JMP 跳转到 ${dest.toString(16).toUpperCase().padStart(2,'0')}H`);
+            PC = dest; 
+        }
+        else if (op === 0x94) { // ADD Ax, Bx
+            log(`[执行] ADD: R${rd} = R${rd} + R${rs}`);
+            R[rd] = (R[rd] + R[rs]) & 0xFFFF;
+        }
+        else if (op === 0xF0) { // ROL Ax
+            log(`[执行] ROL: R${rd} 循环左移一位`);
+            let val = R[rd];
+            R[rd] = ((val << 1) & 0xFFFF) | (val >> 15);
+        }
+        else if (op === 0x82) { // MOV Cx, Ax
+            log(`[执行] MOV R${rd}, R${rs}`);
+            R[rd] = R[rs];
+        }
+        else {
+            log(`⚠️ 遇到全零或未知指令 (空内存)：${IR.toString(16).toUpperCase().padStart(4,'0')}H，自动停机 (HALT) 以防死循环。`);
+            sysState = 'HALT';
+            updateLCD('HALT', '程序已结束');
+            return; 
+        }
+
+        updateRegs();
+
+        if (sysState === 'RUN_WAIT') {
+            setTimeout(executeCPU, 300); // 间隔执行，呈现动画效果
+        }
+    }
+
+</script>
+</body>
+</html>
