@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>计算机组成原理 · 轨道硬件实验舱 | COA Orbital Lab</title>
+<style>
+:root{
+  --bg:#04070c;
+  --panel:rgba(9,17,26,.78);
+  --panel-2:rgba(12,22,33,.9);
+  --line:rgba(120,200,240,.14);
+  --line-strong:rgba(58,217,255,.45);
+  --cyan:#3ad9ff;
+  --cyan-deep:#0e7d9e;
+  --amber:#ffb64d;
+  --green:#3ef0a6;
+  --red:#ff5c72;
+  --text:#d8e9f5;
+  --muted:#7d94a8;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Courier New",monospace;
+  --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--text);font-family:var(--sans);
+  font-size:14px;line-height:1.6;min-height:100vh;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+::selection{background:rgba(58,217,255,.28)}
+
+/* ---------- background layers ---------- */
+.bg-stars,.bg-grid,.bg-glow,.scan{position:fixed;inset:0;pointer-events:none}
+.bg-stars{background:radial-gradient(ellipse at 50% 0%,#0a1522 0%,#050a11 45%,#02040a 100%)}
+.bg-stars canvas{width:100%;height:100%;display:block}
+.bg-glow{
+  background:
+    radial-gradient(600px 320px at 18% 12%,rgba(58,217,255,.10),transparent 70%),
+    radial-gradient(700px 400px at 82% 22%,rgba(255,182,77,.06),transparent 72%),
+    radial-gradient(900px 500px at 50% 108%,rgba(58,217,255,.07),transparent 70%);
+}
+.bg-grid{
+  background-image:
+    linear-gradient(rgba(58,217,255,.055) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(58,217,255,.055) 1px,transparent 1px);
+  background-size:64px 64px;
+  mask-image:linear-gradient(180deg,transparent 0%,#000 22%,#000 62%,transparent 100%);
+  -webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 22%,#000 62%,transparent 100%);
+  opacity:.55;
+}
+.scan{background:repeating-linear-gradient(180deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);opacity:.5;mix-blend-mode:overlay}
+.scan::after{
+  content:"";position:absolute;left:0;right:0;height:180px;
+  background:linear-gradient(180deg,transparent,rgba(58,217,255,.045),transparent);
+  animation:sweep 9s linear infinite;
+}
+@keyframes sweep{0%{top:-180px}100%{top:100%}}
+
+/* ---------- top hud ---------- */
+.hud-top{
+  position:sticky;top:0;z-index:40;height:62px;display:flex;align-items:center;gap:18px;
+  padding:0 20px;background:linear-gradient(180deg,rgba(4,8,14,.94),rgba(4,8,14,.6));
+  border-bottom:1px solid var(--line);backdrop-filter:blur(14px);
+}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.logo{width:34px;height:34px;flex:0 0 auto;filter:drop-shadow(0 0 8px rgba(58,217,255,.5))}
+.brand h1{font-size:15px;font-weight:600;letter-spacing:.4px;white-space:nowrap}
+.brand p{font:400 9.5px/1.4 var(--mono);color:var(--cyan-deep);letter-spacing:2.4px;text-transform:uppercase;white-space:nowrap}
+.hud-spacer{flex:1}
+.hud-meta{display:flex;align-items:center;gap:16px}
+.metric{font-family:var(--mono);font-size:10.5px;color:var(--muted);letter-spacing:1px;text-align:right;line-height:1.35}
+.metric b{display:block;color:var(--cyan);font-size:13px;letter-spacing:1.4px;font-weight:600}
+.leds{display:flex;gap:9px;align-items:center;padding-left:14px;border-left:1px solid var(--line)}
+.led{display:flex;align-items:center;gap:5px;font:400 9.5px/1 var(--mono);color:var(--muted);letter-spacing:.8px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 7px var(--green);animation:pulse 2.4s ease-in-out infinite}
+.dot.amber{background:var(--amber);box-shadow:0 0 7px var(--amber);animation-delay:.6s}
+.dot.cyan{background:var(--cyan);box-shadow:0 0 7px var(--cyan);animation-delay:1.2s}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.32}}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 13px;cursor:pointer;
+  border:1px solid var(--line-strong);border-radius:4px;background:rgba(58,217,255,.07);
+  color:#bfeeff;font:500 11.5px/1 var(--sans);letter-spacing:.6px;transition:.22s;
+}
+.btn:hover{background:rgba(58,217,255,.18);box-shadow:0 0 18px rgba(58,217,255,.25);transform:translateY(-1px)}
+.btn.ghost{border-color:var(--line);color:var(--muted);background:transparent}
+.btn.ghost:hover{color:var(--text);border-color:var(--line-strong)}
+
+/* ---------- rack nav ---------- */
+.rack{
+  position:fixed;left:0;top:62px;bottom:38px;width:60px;z-index:30;
+  display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 0;
+  border-right:1px solid var(--line);background:linear-gradient(90deg,rgba(6,12,19,.92),rgba(6,12,19,.35));
+}
+.rack a{
+  width:38px;height:38px;display:grid;place-items:center;border-radius:5px;
+  font:600 11px/1 var(--mono);color:var(--muted);letter-spacing:.5px;
+  border:1px solid transparent;transition:.2s;position:relative;
+}
+.rack a:hover{color:var(--cyan);background:rgba(58,217,255,.08)}
+.rack a.on{color:#06121a;background:linear-gradient(180deg,#68e4ff,#22b9e0);border-color:#8ff0ff;box-shadow:0 0 16px rgba(58,217,255,.5)}
+.rack a.on::before{content:"";position:absolute;left:-12px;width:2px;height:18px;background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+.rack-line{width:1px;flex:1;background:linear-gradient(180deg,transparent,var(--line),transparent)}
+
+/* ---------- layout ---------- */
+main{
+  padding:26px 340px 90px 84px;max-width:2000px;
+  position:relative;z-index:10;transition:padding .3s;
+}
+body.immersive main{padding-right:96px}
+body.immersive .rack,body.immersive .ai{opacity:0;pointer-events:none;transform:translateX(12px)}
+
+/* ---------- hero ---------- */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,520px);gap:26px;align-items:end;margin-bottom:22px}
+.eyebrow{display:flex;align-items:center;gap:8px;font:500 10.5px/1 var(--mono);color:var(--cyan);letter-spacing:2.6px;margin-bottom:12px}
+.eyebrow::before{content:"";width:26px;height:1px;background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+.hero h2{font-size:34px;line-height:1.22;font-weight:600;letter-spacing:.6px;margin-bottom:10px}
+.hero h2 em{font-style:normal;background:linear-gradient(92deg,#8df0ff,#3ad9ff 45%,#7f8cff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{color:var(--muted);font-size:13.5px;max-width:60ch}
+.stats{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+.stat{
+  min-width:96px;padding:10px 14px;border:1px solid var(--line);border-radius:6px;
+  background:linear-gradient(180deg,rgba(12,24,36,.8),rgba(6,12,19,.6));position:relative;overflow:hidden;
+}
+.stat::after{content:"";position:absolute;left:0;top:0;width:2px;height:100%;background:linear-gradient(180deg,var(--cyan),transparent)}
+.stat b{display:block;font:600 22px/1.1 var(--mono);color:#eaf9ff;letter-spacing:-.5px}
+.stat span{font-size:10.5px;color:var(--muted);letter-spacing:.6px}
+
+/* ---------- bench / instruments ---------- */
+.bench{
+  display:grid;grid-template-columns:1.35fr 1fr;grid-template-rows:auto auto;gap:10px;
+  transform:perspective(1400px) rotateX(4deg) rotateY(-3deg);
+  transform-origin:right center;position:relative;padding-bottom:18px;
+}
+.bench::after{
+  content:"";position:absolute;left:-10px;right:-10px;bottom:0;height:18px;border-radius:3px;
+  background:
+    repeating-linear-gradient(90deg,rgba(58,217,255,.05) 0 1px,transparent 1px 26px),
+    linear-gradient(180deg,#1d2a35,#0a1118);
+  border:1px solid #2b3946;
+  box-shadow:0 14px 26px -14px #000,inset 0 1px 0 rgba(255,255,255,.07);
+}
+.inst{
+  position:relative;border-radius:7px;overflow:hidden;
+  background:linear-gradient(180deg,#141b23,#0a1017 55%,#070c12);
+  border:1px solid #263440;box-shadow:0 18px 40px -18px #000,inset 0 1px 0 rgba(255,255,255,.07);
+}
+.inst::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(160deg,rgba(255,255,255,.05),transparent 40%);
+}
+.inst-head{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:5px 9px;border-bottom:1px solid #1d2833;background:linear-gradient(180deg,#1a232d,#111820);
+}
+.inst-head span{font:500 8.5px/1 var(--mono);color:#8399ab;letter-spacing:1.4px;text-transform:uppercase}
+.inst-head i{font:500 8.5px/1 var(--mono);color:var(--green);letter-spacing:.8px;font-style:normal}
+.inst-body{padding:8px}
+canvas.screen{width:100%;height:82px;display:block;border-radius:3px;background:#050b0e;box-shadow:inset 0 0 24px rgba(58,217,255,.1)}
+.scope-grid-lines{display:none}
+.psu{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px}
+.psu-read{font:600 20px/1 var(--mono);color:var(--amber);text-shadow:0 0 14px rgba(255,182,77,.55);letter-spacing:1px}
+.psu-read small{font-size:11px;color:#8d6a34;letter-spacing:0}
+.knob{width:34px;height:34px;border-radius:50%;flex:0 0 auto;position:relative;
+  background:radial-gradient(circle at 34% 28%,#495a68,#1d2831 62%,#121a22);
+  border:1px solid #33434f;box-shadow:0 3px 8px #000,inset 0 1px 0 rgba(255,255,255,.16);}
+.knob::after{content:"";position:absolute;left:50%;top:7px;width:2px;height:9px;background:var(--cyan);transform:translateX(-50%);box-shadow:0 0 6px var(--cyan);border-radius:2px}
+.la-rows{display:grid;gap:3px;padding:8px}
+.la-row{display:flex;align-items:center;gap:7px}
+.la-row u{font:500 8px/1 var(--mono);color:#66798a;text-decoration:none;width:12px;letter-spacing:.5px}
+.la-row b{flex:1;height:6px;border-radius:1px;background:
+  repeating-linear-gradient(90deg,rgba(62,240,166,.85) 0 9px,rgba(62,240,166,.12) 9px 14px);
+  box-shadow:0 0 6px rgba(62,240,166,.2)}
+.la-row:nth-child(2n) b{background:repeating-linear-gradient(90deg,rgba(58,217,255,.85) 0 6px,rgba(58,217,255,.12) 6px 14px)}
+.bench-note{grid-column:1/-1;text-align:right;font:400 9.5px/1 var(--mono);color:#4f6373;letter-spacing:1.2px}
+
+/* ---------- bay grid ---------- */
+.section-head{display:flex;align-items:baseline;gap:12px;margin:34px 0 14px}
+.section-head h3{font-size:15px;font-weight:600;letter-spacing:1.2px}
+.section-head span{font:400 10px/1 var(--mono);color:var(--muted);letter-spacing:2px;text-transform:uppercase}
+.section-head::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent);transform:translateY(-3px)}
+
+.bays{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;
+  padding:20px;border:1px solid rgba(120,200,240,.10);border-radius:14px;position:relative;
+  background:
+    linear-gradient(180deg,rgba(9,17,26,.55),rgba(4,8,13,.55)),
+    repeating-linear-gradient(0deg,rgba(58,217,255,.022) 0 1px,transparent 1px 40px);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.02),inset 0 30px 60px -40px rgba(58,217,255,.35);
+}
+.bays::before,.bays::after{
+  content:"";position:absolute;top:8px;width:6px;height:6px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#7d93a4,#2a3742);box-shadow:0 0 4px #000;
+}
+.bays::before{left:9px}
+.bays::after{right:9px}
+.bay{
+  position:relative;padding:15px 15px 13px;border-radius:9px;
+  background:
+    radial-gradient(circle at 88% 8%,rgba(58,217,255,.07),transparent 46%),
+    repeating-linear-gradient(90deg,rgba(58,217,255,.028) 0 1px,transparent 1px 7px),
+    linear-gradient(180deg,rgba(13,24,35,.94),rgba(6,12,19,.96));
+  border:1px solid var(--line);
+  box-shadow:0 12px 30px -22px #000,inset 0 1px 0 rgba(255,255,255,.05);
+  transition:border-color .25s,box-shadow .25s,transform .25s;
+  overflow:hidden;
+}
+.bay::before,.bay::after{content:"";position:absolute;width:12px;height:12px;border:1px solid rgba(58,217,255,.5);opacity:.7;transition:.25s}
+.bay::before{left:6px;top:6px;border-right:0;border-bottom:0}
+.bay::after{right:6px;bottom:6px;border-left:0;border-top:0}
+.bay:hover{border-color:rgba(58,217,255,.42);box-shadow:0 0 0 1px rgba(58,217,255,.16),0 22px 44px -26px rgba(58,217,255,.5);transform:translateY(-3px)}
+.bay:hover::before,.bay:hover::after{opacity:1;width:18px;height:18px}
+.bay.focus{border-color:var(--line-strong);box-shadow:0 0 0 1px rgba(58,217,255,.3),0 0 40px -12px rgba(58,217,255,.4)}
+
+.bay-top{display:flex;align-items:flex-start;gap:11px;margin-bottom:11px}
+.bay-no{
+  font:600 26px/1 var(--mono);letter-spacing:-1px;
+  background:linear-gradient(180deg,#b3f5ff,#1e93b8 88%);-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 10px rgba(58,217,255,.35));
+}
+.fingers{
+  position:absolute;left:15px;right:15px;bottom:3px;height:4px;pointer-events:none;
+  background:repeating-linear-gradient(90deg,rgba(214,170,86,.55) 0 3px,transparent 3px 7px);
+  border-radius:1px;opacity:.5;
+}
+.bay-title{flex:1;min-width:0}
+.bay-title h4{font-size:14.5px;font-weight:600;letter-spacing:.8px;margin-bottom:2px}
+.bay-title p{font:400 9px/1.3 var(--mono);color:var(--cyan-deep);letter-spacing:1.8px;text-transform:uppercase}
+.bay-led{display:flex;align-items:center;gap:5px;font:400 8.5px/1 var(--mono);color:#5d7386;letter-spacing:.8px;padding-top:4px}
+.bay-led .dot{width:5px;height:5px}
+
+.chip-row{display:flex;align-items:center;gap:11px;padding:9px 0 11px;border-top:1px dashed rgba(120,200,240,.12);border-bottom:1px dashed rgba(120,200,240,.12);margin-bottom:11px}
+.chip{
+  position:relative;width:62px;height:40px;flex:0 0 auto;border-radius:2px;display:grid;place-items:center;
+  background:linear-gradient(155deg,#1c2836,#0c141d 65%);
+  border:1px solid rgba(150,220,255,.24);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 5px 12px rgba(0,0,0,.55);
+}
+.chip::before,.chip::after{content:"";position:absolute;left:7px;right:7px;height:3px;
+  background:repeating-linear-gradient(90deg,#8ea6b8 0 2px,transparent 2px 5px);opacity:.55}
+.chip::before{top:-3px}.chip::after{bottom:-3px}
+.chip b{font:600 8.5px/1.15 var(--mono);color:#a9ecff;letter-spacing:.4px;text-align:center}
+.chip-info{flex:1;min-width:0;font-size:11px;color:#93a9ba;line-height:1.55}
+.chip-info strong{color:#cfe6f3;font-weight:500}
+.chip-info em{display:block;font:400 9px/1.5 var(--mono);color:#55707f;letter-spacing:.6px;font-style:normal}
+
+.labs{display:grid;gap:6px}
+.lab{
+  display:flex;align-items:center;gap:8px;padding:8px 9px;border-radius:5px;
+  border:1px solid rgba(120,200,240,.13);background:rgba(58,217,255,.035);
+  transition:.2s;position:relative;
+}
+.lab:hover{background:rgba(58,217,255,.13);border-color:rgba(58,217,255,.5);transform:translateX(2px)}
+.lab i{font:600 8.5px/1 var(--mono);color:var(--cyan);letter-spacing:.5px;flex:0 0 auto;opacity:.85}
+.lab u{text-decoration:none;flex:1;font-size:11.5px;color:#cfe2ee;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lab s{text-decoration:none;font:600 10px/1 var(--mono);color:#3f6478;transition:.2s}
+.lab:hover s{color:var(--cyan);transform:translateX(2px)}
+.lab.core u{color:#ffe0b0}
+.lab .tag{font:600 8px/1 var(--mono);padding:2px 4px;border-radius:2px;text-decoration:none;background:rgba(255,182,77,.16);color:var(--amber);letter-spacing:.4px}
+
+.bay-foot{display:flex;gap:12px;margin-top:10px;font:400 9.5px/1 var(--mono);color:#59707f;letter-spacing:.6px}
+.bay-foot b{color:#8fa8ba;font-weight:500}
+.bay-foot .sep{color:#2b3a46}
+
+/* ---------- pipeline ---------- */
+.pipeline{margin-top:34px;padding:16px 18px;border:1px solid var(--line);border-radius:9px;
+  background:linear-gradient(180deg,rgba(10,19,29,.8),rgba(5,10,16,.8));position:relative;overflow:hidden}
+.pipeline::before{content:"";position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,rgba(58,217,255,.03) 0 1px,transparent 1px 9px);pointer-events:none}
+.flow{display:flex;align-items:center;gap:0;flex-wrap:wrap;position:relative;z-index:1}
+.node{
+  display:flex;flex-direction:column;gap:3px;padding:7px 12px;border:1px solid rgba(120,200,240,.18);
+  border-radius:4px;background:rgba(58,217,255,.05);min-width:86px;
+}
+.node b{font-size:11px;font-weight:500;color:#cde3f0;letter-spacing:.4px}
+.node span{font:400 8.5px/1 var(--mono);color:#5f788a;letter-spacing:.8px}
+.link{flex:1;min-width:22px;height:1px;background:linear-gradient(90deg,rgba(58,217,255,.2),rgba(58,217,255,.7),rgba(58,217,255,.2));position:relative}
+.link::after{content:"";position:absolute;top:-2px;width:5px;height:5px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan);animation:run 2.6s linear infinite}
+.link:nth-of-type(2)::after{animation-delay:.3s}
+.link:nth-of-type(4)::after{animation-delay:.6s}
+.link:nth-of-type(6)::after{animation-delay:.9s}
+.link:nth-of-type(8)::after{animation-delay:1.2s}
+.link:nth-of-type(10)::after{animation-delay:1.5s}
+@keyframes run{0%{left:-2%;opacity:0}12%{opacity:1}88%{opacity:1}100%{left:98%;opacity:0}}
+
+/* ---------- AI panel ---------- */
+.ai{
+  position:fixed;right:16px;top:76px;bottom:46px;width:308px;z-index:35;
+  display:flex;flex-direction:column;gap:10px;overflow-y:auto;padding-right:2px;
+  transition:opacity .3s,transform .3s;
+}
+.ai::-webkit-scrollbar{width:4px}
+.ai::-webkit-scrollbar-thumb{background:rgba(58,217,255,.25);border-radius:2px}
+.card{
+  border:1px solid var(--line);border-radius:8px;background:linear-gradient(180deg,rgba(11,21,31,.92),rgba(6,11,18,.94));
+  box-shadow:0 14px 34px -26px #000,inset 0 1px 0 rgba(255,255,255,.05);overflow:hidden;
+}
+.card-head{display:flex;align-items:center;gap:7px;padding:9px 11px;border-bottom:1px solid rgba(120,200,240,.1);
+  background:linear-gradient(180deg,rgba(58,217,255,.07),transparent)}
+.card-head .dot{width:5px;height:5px}
+.card-head h5{font-size:11.5px;font-weight:600;letter-spacing:.8px;flex:1}
+.card-head em{font:400 8.5px/1 var(--mono);color:#5f788a;font-style:normal;letter-spacing:1px}
+.card-body{padding:11px}
+
+.task{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:7px}
+.task b{font-size:12px;font-weight:500;color:#dceefb}
+.task span{font:600 10px/1 var(--mono);color:var(--cyan);letter-spacing:.6px}
+.bar{height:4px;border-radius:2px;background:rgba(120,200,240,.12);overflow:hidden}
+.bar i{display:block;height:100%;width:0;border-radius:2px;background:linear-gradient(90deg,#1eb6d8,#7ef0ff);box-shadow:0 0 10px rgba(58,217,255,.6);transition:width 1.4s cubic-bezier(.2,.8,.2,1)}
+
+.hint{font-size:11.5px;line-height:1.72;color:#a8c2d4;min-height:58px}
+.hint b{color:var(--cyan);font-weight:500}
+.hint .kbd{font:500 10px/1 var(--mono);padding:2px 4px;border:1px solid rgba(120,200,240,.28);border-radius:3px;color:#cdeaf7;background:rgba(58,217,255,.08)}
+
+.alerts{display:grid;gap:7px}
+.alert{display:flex;gap:8px;padding:8px 9px;border-radius:5px;border:1px solid;font-size:11px;line-height:1.6}
+.alert.warn{border-color:rgba(255,182,77,.3);background:rgba(255,182,77,.07);color:#f0cfa0}
+.alert.info{border-color:rgba(58,217,255,.22);background:rgba(58,217,255,.05);color:#a9cfe0}
+.alert.ok{border-color:rgba(62,240,166,.26);background:rgba(62,240,166,.06);color:#a5e8cd}
+.alert u{text-decoration:none;font:600 9px/1 var(--mono);letter-spacing:.5px;flex:0 0 auto;padding-top:3px;opacity:.85}
+
+.radar-wrap{display:flex;justify-content:center;padding:2px 0 4px}
+.radar{width:100%;max-width:258px;height:auto}
+.legend{display:flex;justify-content:center;gap:14px;font:400 9px/1 var(--mono);color:#5f788a;letter-spacing:.6px;padding-top:2px}
+.legend i{display:inline-block;width:7px;height:2px;vertical-align:middle;margin-right:4px}
+
+.ai-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:0 11px 11px}
+.ai-actions .btn{width:100%;justify-content:center;height:29px;font-size:10.5px}
+
+/* ---------- bottom hud ---------- */
+.hud-bottom{
+  position:fixed;left:0;right:0;bottom:0;height:38px;z-index:40;display:flex;align-items:center;gap:14px;
+  padding:0 18px;background:linear-gradient(0deg,rgba(4,8,14,.97),rgba(4,8,14,.75));
+  border-top:1px solid var(--line);backdrop-filter:blur(10px);
+  font:400 10px/1 var(--mono);color:#6a8294;letter-spacing:.8px;
+}
+.ticker{flex:1;overflow:hidden;white-space:nowrap;position:relative;mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent)}
+.ticker div{display:inline-block;animation:marquee 46s linear infinite}
+.ticker b{color:var(--cyan);font-weight:500}
+.ticker span{margin:0 14px;color:#33454f}
+@keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.hud-bottom .right{display:flex;gap:12px;align-items:center;color:#4f6575}
+.hud-bottom .right b{color:#8ba4b5;font-weight:500}
+
+/* ---------- toast ---------- */
+.toast{
+  position:fixed;left:50%;bottom:58px;transform:translate(-50%,20px);z-index:60;
+  padding:9px 16px;border-radius:5px;border:1px solid var(--line-strong);
+  background:rgba(8,18,27,.96);color:#c9ecfa;font-size:12px;letter-spacing:.4px;
+  box-shadow:0 16px 40px -16px #000;opacity:0;pointer-events:none;transition:.3s;
+}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+footer.credit{padding:26px 0 6px;text-align:center;font:400 10px/1.9 var(--mono);color:#3f5563;letter-spacing:1.1px}
+footer.credit b{color:#5d7889;font-weight:500}
+
+/* ---------- responsive ---------- */
+@media(max-width:1520px){
+  .hero{grid-template-columns:minmax(0,1fr) minmax(0,430px);gap:20px}
+  .hero h2{font-size:30px}
+}
+@media(max-width:1300px){
+  .hero{grid-template-columns:minmax(0,1fr)}
+  .bench{max-width:640px}
+  .bays{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:1180px){
+  main{padding:22px 22px 90px 76px}
+  .ai{position:static;width:auto;margin:0 22px 0 76px;height:auto;overflow:visible}
+  body.immersive main{padding-right:22px}
+}
+@media(max-width:760px){
+  .hud-top{height:auto;padding:10px 12px;flex-wrap:wrap;gap:10px}
+  .brand p{display:none}
+  .hud-meta .metric{display:none}
+  .rack{display:none}
+  main{padding:16px 12px 80px}
+  .ai{margin:0 12px;position:static}
+  .hero h2{font-size:24px}
+  .bays{grid-template-columns:1fr}
+  .bench{grid-template-columns:1fr;transform:none}
+  .section-head{margin:22px 0 10px}
+  .lab u{white-space:normal}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<div class="bg-stars"><canvas id="stars"></canvas></div>
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+<div class="scan"></div>
+
+<header class="hud-top">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+      <path d="M20 2 36 11v18L20 38 4 29V11L20 2Z" stroke="#3ad9ff" stroke-width="1.2" opacity=".85"/>
+      <path d="M20 8 30.5 14v12L20 32 9.5 26V14L20 8Z" stroke="#3ad9ff" stroke-width=".8" opacity=".4"/>
+      <rect x="14" y="14" width="12" height="12" rx="1.5" stroke="#8df0ff" stroke-width="1.1"/>
+      <path d="M17 17h6v6h-6z" fill="#3ad9ff" opacity=".55"/>
+      <path d="M20 2v6M36 11l-5.5 3M36 29l-5.5-3M20 38v-6M4 29l5.5-3M4 11l5.5 3" stroke="#3ad9ff" stroke-width="1" opacity=".55"/>
+    </svg>
+    <div>
+      <h1>计算机组成原理 · 轨道硬件实验舱</h1>
+      <p>COA-09 Orbital Hardware Lab</p>
+    </div>
+  </div>
+  <div class="hud-spacer"></div>
+  <div class="hud-meta">
+    <div class="metric">LOCAL TIME<b id="clock">--:--:--</b></div>
+    <div class="leds">
+      <div class="led"><i class="dot"></i>链路</div>
+      <div class="led"><i class="dot cyan"></i>AI 引导</div>
+      <div class="led"><i class="dot amber"></i>离线运行</div>
+    </div>
+    <button class="btn" id="immersiveBtn" type="button">◎ 沉浸模式</button>
+  </div>
+</header>
+
+<nav class="rack" aria-label="实验舱导航">
+  <a href="#bay-01" data-nav="01" class="on">01</a>
+  <a href="#bay-02" data-nav="02">02</a>
+  <a href="#bay-03" data-nav="03">03</a>
+  <a href="#bay-04" data-nav="04">04</a>
+  <a href="#bay-05" data-nav="05">05</a>
+  <a href="#bay-06" data-nav="06">06</a>
+  <a href="#bay-07" data-nav="07">07</a>
+  <a href="#bay-08" data-nav="08">08</a>
+  <a href="#bay-09" data-nav="09">09</a>
+  <span class="rack-line"></span>
+</nav>
+
+<main>
+  <section class="hero">
+    <div>
+      <div class="eyebrow">VIRTUAL BENCH · 虚实融合硬件实验</div>
+      <h2>把整台<em>实验箱</em>搬进浏览器<br>九段舱位，一条数据通路</h2>
+      <p>从 74LS181 的拨码置数，到 2816 微程序的自动取指，再到复杂模型机的 I/O 联调——所有实验都在同一个硬件工作台上完成，鼠标即探针，拨码即开关，结果是真实的电平。</p>
+      <div class="stats">
+        <div class="stat"><b>09</b><span>实验舱段</span></div>
+        <div class="stat"><b>18</b><span>可运行实验</span></div>
+        <div class="stat"><b>20+</b><span>每舱交互步骤</span></div>
+        <div class="stat"><b>0</b><span>插件/安装</span></div>
+      </div>
+    </div>
+    <div class="bench">
+      <div class="inst">
+        <div class="inst-head"><span>Digital Storage Oscilloscope</span><i>RUN</i></div>
+        <div class="inst-body"><canvas class="screen" id="scope"></canvas></div>
+      </div>
+      <div class="inst">
+        <div class="inst-head"><span>DC Power Supply</span><i>CV</i></div>
+        <div class="psu">
+          <div>
+            <div class="psu-read" id="psuV">5.00<small> V</small></div>
+            <div class="psu-read" style="font-size:13px;margin-top:4px" id="psuA">0.42<small> A</small></div>
+          </div>
+          <div class="knob"></div>
+        </div>
+      </div>
+      <div class="inst" style="grid-column:1/-1">
+        <div class="inst-head"><span>Logic Analyzer · 8 CH</span><i>ARMED</i></div>
+        <div class="la-rows">
+          <div class="la-row"><u>D0</u><b></b></div>
+          <div class="la-row"><u>D1</u><b></b></div>
+          <div class="la-row"><u>D2</u><b></b></div>
+          <div class="la-row"><u>D3</u><b></b></div>
+        </div>
+      </div>
+      <div class="bench-note">BENCH-01 · 实时电平监视 · 与舱内拨码同步</div>
+    </div>
+  </section>
+
+  <div class="section-head"><h3>舱段总览</h3><span>Bay Overview · 18 Modules</span></div>
+  <section class="bays" id="bays"></section>
+
+  <div class="section-head"><h3>数据通路</h3><span>Data Path · Switch to Instruction</span></div>
+  <section class="pipeline">
+    <div class="flow">
+      <div class="node"><b>拨码 / 开关</b><span>SWITCH</span></div>
+      <div class="link"></div>
+      <div class="node"><b>寄存器</b><span>LDR · LT</span></div>
+      <div class="link"></div>
+      <div class="node"><b>运算器</b><span>74LS181</span></div>
+      <div class="link"></div>
+      <div class="node"><b>总线</b><span>BUS · 门控</span></div>
+      <div class="link"></div>
+      <div class="node"><b>存储器</b><span>6116 RAM</span></div>
+      <div class="link"></div>
+      <div class="node"><b>控制存储器</b><span>2816 CM</span></div>
+      <div class="link"></div>
+      <div class="node"><b>整机模型机</b><span>CPU · 联调</span></div>
+      <div class="link"></div>
+      <div class="node"><b>I/O 接口</b><span>8255</span></div>
+    </div>
+  </section>
+
+  <footer class="credit">
+    <b>辽宁师范大学 · 计算机组成原理课程组</b> · 纯前端 HTML5 实现，无需安装插件，双击即可运行<br>
+    实验内容依据《计算机组成原理实验指导书》自主开发 · 界面仅供教学使用
+  </footer>
+</main>
+
+<aside class="ai" aria-label="AI 助教面板">
+  <div class="card">
+    <div class="card-head"><i class="dot"></i><h5>AI 助教 · 实时引导</h5><em>AGENT</em></div>
+    <div class="card-body">
+      <div class="task"><b>实验一 · 拨码 ALU 置数</b><span id="stepNo">07 / 24</span></div>
+      <div class="bar"><i id="stepBar"></i></div>
+      <div class="hint" id="hint">正在监听拨码状态……</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><i class="dot amber"></i><h5>智能诊断</h5><em>LIVE</em></div>
+    <div class="card-body">
+      <div class="alerts">
+        <div class="alert warn"><u>WARN</u><span>检测到 <b>C-G</b> 与 <b>ALU-G</b> 同时为 0：总线将发生冲突，请先关闭输入门再开输出门。</span></div>
+        <div class="alert info"><u>NOTE</u><span>若 CY 无变化，先确认 <b>M=0</b>（算术模式）且 <b>Cn=1</b>（无进位输入）。</span></div>
+        <div class="alert ok"><u>OK</u><span>当前时序：T+ 单步脉冲正常，寄存器可安全打入。</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><i class="dot cyan"></i><h5>能力画像</h5><em>RADAR</em></div>
+    <div class="card-body" style="padding-bottom:4px">
+      <div class="radar-wrap">
+        <svg class="radar" viewBox="0 0 260 220" id="radarSvg" aria-label="能力雷达图"></svg>
+      </div>
+      <div class="legend"><span><i style="background:#3ad9ff"></i>本机</span><span><i style="background:#ffb64d"></i>课程目标</span></div>
+    </div>
+    <div class="ai-actions">
+      <button class="btn ghost" type="button" data-toast="诊断报告将汇总本次 24 步操作记录与错因分析（演示占位）">生成诊断报告</button>
+      <button class="btn ghost" type="button" data-toast="知识库已挂载《实验指导书》9 章要点（演示占位）">知识库检索</button>
+    </div>
+  </div>
+</aside>
+
+<footer class="hud-bottom">
+  <div class="ticker"><div>
+    <b>操作提示</b> 拨码置数前先清零 · 开门顺序 C-G 先关再开 ALU-G · T+ 单步脉冲每按一次打入一次<span>|</span>
+    <b>实验五</b> 微程序自动运行需先把表 5-3 全部代码写入 2816<span>|</span>
+    <b>实验九</b> 8255 控制字必须先配置再读写 PA/PB 口<span>|</span>
+    <b>操作提示</b> 拨码置数前先清零 · 开门顺序 C-G 先关再开 ALU-G · T+ 单步脉冲每按一次打入一次<span>|</span>
+    <b>实验五</b> 微程序自动运行需先把表 5-3 全部代码写入 2816<span>|</span>
+    <b>实验九</b> 8255 控制字必须先配置再读写 PA/PB 口<span>|</span>
+  </div></div>
+  <div class="right"><span>COA-09</span><span>v1.0</span><b id="online">18 / 18 在线</b></div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============ 实验舱数据（与 labs/ 目录一一对应） ============ */
+const BAYS = [
+  {
+    id:'01', name:'运算器舱', en:'Arithmetic Unit', chip:'74LS181',
+    chipNote:'<strong>4 位 ALU + 函数发生器</strong><em>M / S3–S0 / Cn · CY 进位输出</em>',
+    tag:'ALU · 门控 · 进位',
+    points:'ALU 功能表译码 · C-G/ALU-G 互斥 · LDR 打入脉冲',
+    steps:24, mins:45,
+    labs:[
+      {id:'1-1', t:'键盘控制 ALU 入门', f:'labs/01-alu-basic.html'},
+      {id:'1-2', t:'纯硬件拨码 ALU（V4 物理版）', f:'labs/01-alu-hardware.html', core:true}
+    ]
+  },
+  {
+    id:'02', name:'移位寄存器舱', en:'Shift Register', chip:'74LS194',
+    chipNote:'<strong>4 位双向移位寄存器</strong><em>S1 / S0 / M · 左移右移与并行装载</em>',
+    tag:'移位 · 串并转换',
+    points:'S1S0 工作方式 · 循环移位 · 16 位拼接',
+    steps:22, mins:40,
+    labs:[
+      {id:'2-1', t:'键盘控制移位寄存器', f:'labs/02-shift-basic.html'},
+      {id:'2-2', t:'纯硬件拨码 16 位移位（V4）', f:'labs/02-shift-hardware.html', core:true}
+    ]
+  },
+  {
+    id:'03', name:'存储器舱', en:'Memory & Bus', chip:'6116',
+    chipNote:'<strong>2K×8 静态 RAM</strong><em>地址/数据分时复用 · WE / CE 读写控制</em>',
+    tag:'RAM · 总线 · 时序',
+    points:'地址建立 · 写脉冲宽度 · 三态门与总线仲裁',
+    steps:26, mins:50,
+    labs:[
+      {id:'3-1', t:'RAM 读写（键盘）', f:'labs/03-ram-basic.html'},
+      {id:'3-2', t:'纯拨码 RAM 读写（V4）', f:'labs/03-ram-hardware.html', core:true},
+      {id:'3-3', t:'附加：总线控制与全系统协同', f:'labs/03-bus-system.html'}
+    ]
+  },
+  {
+    id:'04', name:'微程序控制器舱', en:'Microprogram Unit', chip:'2816',
+    chipNote:'<strong>2K×8 控制存储器</strong><em>微指令格式 · 下址字段 · 控制字段</em>',
+    tag:'微指令 · 读写',
+    points:'2816 写入时序 · 微指令编码 · 下址与转移',
+    steps:25, mins:50,
+    labs:[
+      {id:'4-1', t:'2816 微指令写读', f:'labs/04-microcode-basic.html'},
+      {id:'4-2', t:'全物理拨码版', f:'labs/04-microcode-hardware.html', core:true}
+    ]
+  },
+  {
+    id:'05', name:'微程序自动运行舱', en:'Micro-Sequencer', chip:'2816 · 时序',
+    chipNote:'<strong>取指—译码—执行</strong><em>预置表 5-3 微指令序列 · 自动节拍推进</em>',
+    tag:'自动运行 · 节拍',
+    points:'微地址转移 · 节拍发生器 · 指令周期',
+    steps:23, mins:45,
+    labs:[
+      {id:'5-1', t:'预置代码自动运行', f:'labs/05-microrun-basic.html', core:true},
+      {id:'5-2', t:'全拨码全自动版', f:'labs/05-microrun-hardware.html'}
+    ]
+  },
+  {
+    id:'06', name:'整机模型机舱', en:'Model Machine', chip:'CPU 整机',
+    chipNote:'<strong>数据通路全联通</strong><em>PC / IR / ALU / RAM / 微控制器协同</em>',
+    tag:'整机 · 联调',
+    points:'取指通路 · 指令执行 · 单步与全速',
+    steps:28, mins:60,
+    labs:[
+      {id:'6-1', t:'整机系统运行', f:'labs/06-model-basic.html', core:true},
+      {id:'6-2', t:'全物理控制台', f:'labs/06-model-hardware.html'}
+    ]
+  },
+  {
+    id:'07', name:'移位模型机舱', en:'Shifted Model', chip:'CPU + 移位',
+    chipNote:'<strong>带移位运算的模型机</strong><em>在整机中扩展移位类指令</em>',
+    tag:'指令扩展',
+    points:'移位指令微程序 · 数据通路改造',
+    steps:24, mins:55,
+    labs:[
+      {id:'7-1', t:'带移位运算的模型机', f:'labs/07-modelshift.html', core:true},
+      {id:'7-2', t:'精简版（快速演示）', f:'labs/07-modelshift-lite.html'}
+    ]
+  },
+  {
+    id:'08', name:'复杂模型机舱', en:'Complex Model', chip:'CPU 指令系统',
+    chipNote:'<strong>复杂指令系统</strong><em>多条指令联调 · 键盘/开关双操作范式</em>',
+    tag:'复杂指令 · 双操作',
+    points:'指令译码扩展 · 键盘操作与纯开关操作对照',
+    steps:30, mins:70,
+    labs:[
+      {id:'8-1', t:'键盘操作版（修复版）', f:'labs/08-complex-keyboard.html', core:true},
+      {id:'8-2', t:'纯开关操作版', f:'labs/08-complex-switch.html'}
+    ]
+  },
+  {
+    id:'09', name:'I/O 接口舱', en:'I/O Interface', chip:'8255A',
+    chipNote:'<strong>可编程并行接口</strong><em>PA / PB 口 · 控制字配置 · 双字长架构</em>',
+    tag:'8255 · 并行口',
+    points:'控制字写入 · 端口地址分配 · 输入输出联调',
+    steps:26, mins:50,
+    labs:[
+      {id:'9-1', t:'复杂模型机 I/O 实验', f:'labs/09-io8255.html', core:true}
+    ]
+  }
+];
+
+/* ============ 渲染舱段 ============ */
+const baysEl = document.getElementById('bays');
+baysEl.innerHTML = BAYS.map(b => `
+  <article class="bay" id="bay-${b.id}" data-id="${b.id}">
+    <div class="bay-top">
+      <div class="bay-no">${b.id}</div>
+      <div class="bay-title">
+        <h4>${b.name}</h4>
+        <p>${b.en}</p>
+      </div>
+      <div class="bay-led"><i class="dot"></i>在线</div>
+    </div>
+    <div class="chip-row">
+      <div class="chip"><b>${b.chip}</b></div>
+      <div class="chip-info">${b.chipNote}</div>
+    </div>
+    <div class="labs">
+      ${b.labs.map(l => `
+        <a class="lab${l.core?' core':''}" href="${l.f}" target="_blank" rel="noopener">
+          <i>${l.id}</i>
+          <u>${l.t}</u>
+          ${l.core?'<span class="tag">核心</span>':''}
+          <s>OPEN →</s>
+        </a>`).join('')}
+    </div>
+    <div class="bay-foot">
+      <span><b>${b.steps}</b> 步</span><span class="sep">·</span>
+      <span>约 <b>${b.mins}</b> min</span><span class="sep">·</span>
+      <span>${b.tag}</span>
+    </div>
+    <div class="fingers"></div>
+  </article>`).join('');
+
+/* ============ 云端分享：为子页面链接补齐 sharecode（本地打开时自动跳过） ============ */
+(function shareCode(){
+  const code = new URLSearchParams(location.search).get('sharecode');
+  if (!code) return;
+  document.querySelectorAll('a.lab[href]').forEach(a => {
+    try {
+      const u = new URL(a.getAttribute('href'), location.href);
+      u.searchParams.set('sharecode', code);
+      a.setAttribute('href', u.href);
+    } catch(e) {}
+  });
+})();
+
+/* ============ 时钟 ============ */
+const clockEl = document.getElementById('clock');
+setInterval(() => {
+  const d = new Date();
+  clockEl.textContent = [d.getHours(), d.getMinutes(), d.getSeconds()]
+    .map(n => String(n).padStart(2,'0')).join(':');
+}, 1000);
+clockEl.textContent = new Date().toLocaleTimeString('zh-CN', {hour12:false});
+
+/* ============ 导航高亮 ============ */
+const navLinks = [...document.querySelectorAll('.rack a')];
+const bayEls = [...document.querySelectorAll('.bay')];
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const id = e.target.dataset.id;
+      navLinks.forEach(a => a.classList.toggle('on', a.dataset.nav === id));
+      bayEls.forEach(b => b.classList.toggle('focus', b.dataset.id === id));
+    }
+  });
+}, {rootMargin:'-30% 0px -55% 0px', threshold:0});
+bayEls.forEach(b => io.observe(b));
+
+/* ============ 星空 ============ */
+(function stars(){
+  const c = document.getElementById('stars'), x = c.getContext('2d');
+  let w, h, pts = [];
+  function init(){
+    w = c.width = c.offsetWidth * devicePixelRatio;
+    h = c.height = c.offsetHeight * devicePixelRatio;
+    const n = Math.min(180, Math.round(w * h / 26000));
+    pts = Array.from({length:n}, () => ({
+      x: Math.random()*w, y: Math.random()*h,
+      r: Math.random()*1.3 + .35,
+      a: Math.random()*.6 + .18,
+      s: Math.random()*.06 + .012
+    }));
+  }
+  function draw(){
+    x.clearRect(0,0,w,h);
+    pts.forEach(p => {
+      p.y += p.s * devicePixelRatio;
+      if (p.y > h) { p.y = 0; p.x = Math.random()*w; }
+      x.beginPath();
+      x.arc(p.x, p.y, p.r * devicePixelRatio, 0, Math.PI*2);
+      x.fillStyle = `rgba(170,225,255,${p.a})`;
+      x.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+  init(); draw();
+  addEventListener('resize', init);
+})();
+
+/* ============ 示波器 ============ */
+(function scope(){
+  const c = document.getElementById('scope'), x = c.getContext('2d');
+  let w, h, t = 0;
+  function size(){
+    w = c.width = c.offsetWidth * devicePixelRatio;
+    h = c.height = c.offsetHeight * devicePixelRatio;
+  }
+  function grid(){
+    x.strokeStyle = 'rgba(58,217,255,.10)'; x.lineWidth = 1;
+    for (let i=1;i<8;i++){ x.beginPath(); x.moveTo(w*i/8,0); x.lineTo(w*i/8,h); x.stroke(); }
+    for (let i=1;i<4;i++){ x.beginPath(); x.moveTo(0,h*i/4); x.lineTo(w,h*i/4); x.stroke(); }
+    x.strokeStyle = 'rgba(58,217,255,.20)';
+    x.beginPath(); x.moveTo(0,h/2); x.lineTo(w,h/2); x.stroke();
+  }
+  function trace(color, amp, freq, phase, offset, width){
+    x.beginPath();
+    for (let px=0; px<=w; px+=2){
+      const u = px / w;
+      // 方波 + 台阶，模拟 T+ 节拍与数据总线电平
+      const sq = ((u*freq + phase) % 1) < .5 ? 1 : 0;
+      const y = h/2 + offset - (sq ? amp : 0) + Math.sin((u*40 + t)) * 1.2 * devicePixelRatio;
+      px === 0 ? x.moveTo(px,y) : x.lineTo(px,y);
+    }
+    x.strokeStyle = color; x.lineWidth = width * devicePixelRatio;
+    x.shadowColor = color; x.shadowBlur = 7 * devicePixelRatio;
+    x.stroke(); x.shadowBlur = 0;
+  }
+  function draw(){
+    x.clearRect(0,0,w,h); grid();
+    trace('rgba(58,217,255,.95)', 22*devicePixelRatio, 3, t*.5, -8*devicePixelRatio, 1.2);
+    trace('rgba(255,182,77,.85)', 14*devicePixelRatio, 2, -t*.35, 18*devicePixelRatio, 1);
+    t += .012;
+    requestAnimationFrame(draw);
+  }
+  size(); draw();
+  addEventListener('resize', size);
+})();
+
+/* ============ 电源读数 ============ */
+setInterval(() => {
+  const v = (5 + (Math.random()-0.5)*0.02).toFixed(2);
+  const a = (0.42 + (Math.random()-0.5)*0.05).toFixed(2);
+  document.getElementById('psuV').innerHTML = v + '<small> V</small>';
+  document.getElementById('psuA').innerHTML = a + '<small> A</small>';
+}, 2200);
+
+/* ============ 能力雷达 ============ */
+(function radar(){
+  const svg = document.getElementById('radarSvg');
+  const labels = ['数据通路','总线时序','微程序','整机联调','I/O 接口','故障诊断'];
+  const self = [0.88,0.72,0.66,0.58,0.52,0.61];
+  const goal = [0.90,0.85,0.85,0.80,0.75,0.78];
+  const cx = 134, cy = 104, R = 66;
+  const pt = (i, r) => {
+    const ang = -Math.PI/2 + i * 2*Math.PI/labels.length;
+    return [cx + Math.cos(ang)*r, cy + Math.sin(ang)*r];
+  };
+  let s = '';
+  // 网格
+  [0.25,0.5,0.75,1].forEach(k => {
+    const p = labels.map((_,i)=>pt(i,R*k).join(',')).join(' ');
+    s += `<polygon points="${p}" fill="none" stroke="rgba(120,200,240,${k===1?.20:.10})" stroke-width="1"/>`;
+  });
+  labels.forEach((_,i) => {
+    const [x2,y2] = pt(i,R);
+    s += `<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="rgba(120,200,240,.10)" stroke-width="1"/>`;
+  });
+  // 目标
+  s += `<polygon points="${goal.map((v,i)=>pt(i,R*v).join(',')).join(' ')}" fill="rgba(255,182,77,.10)" stroke="#ffb64d" stroke-width="1.1" stroke-dasharray="3 3"/>`;
+  // 本机
+  s += `<polygon points="${self.map((v,i)=>pt(i,R*v).join(',')).join(' ')}" fill="rgba(58,217,255,.18)" stroke="#3ad9ff" stroke-width="1.6"/>`;
+  self.forEach((v,i) => {
+    const [px,py] = pt(i,R*v);
+    s += `<circle cx="${px}" cy="${py}" r="2.1" fill="#9df1ff"/>`;
+  });
+  // 标签
+  labels.forEach((t,i) => {
+    const [tx,ty] = pt(i,R+19);
+    s += `<text x="${tx}" y="${ty}" fill="#7d94a8" font-size="8.5" font-family="ui-monospace,Menlo,monospace" text-anchor="middle" dominant-baseline="middle" letter-spacing=".5">${t}</text>`;
+  });
+  svg.innerHTML = s;
+})();
+
+/* ============ AI 引导轮播 ============ */
+const HINTS = [
+  '先按 <b>CLR</b> 清零，再把 SW7–SW0 拨成操作数 A；置数后按 <span class="kbd">T+</span> 打入 LT1。',
+  '选择运算：<b>M=0</b> 为算术、<b>M=1</b> 为逻辑；S3–S0 对应功能表一行，可在口诀区对照。',
+  '<b>开门顺序</b>：先 C-G=0 送数上路，读结果前关 C-G、开 ALU-G，避免总线冲突。',
+  '写到 <b>2816</b> 时先给地址，再置微指令字，最后给写脉冲；下址字段决定下一条微指令。',
+  '整机实验建议先 <b>单步</b>看 PC / IR / 数据总线，确认取指通路后再切全速。'
+];
+let hi = 0;
+const hintEl = document.getElementById('hint');
+function rollHint(){
+  hintEl.style.opacity = 0;
+  setTimeout(() => {
+    hintEl.innerHTML = HINTS[hi % HINTS.length];
+    hintEl.style.transition = 'opacity .5s'; hintEl.style.opacity = 1;
+    hi++;
+  }, 260);
+}
+hintEl.innerHTML = HINTS[0]; hi = 1;
+setInterval(rollHint, 6500);
+document.getElementById('stepBar').style.width = '29%';
+setTimeout(() => document.getElementById('stepBar').style.width = '72%', 600);
+
+/* ============ 沉浸模式 / toast ============ */
+const toastEl = document.getElementById('toast');
+let toastTimer;
+function toast(msg){
+  toastEl.textContent = msg; toastEl.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('on'), 2600);
+}
+document.querySelectorAll('[data-toast]').forEach(b => {
+  b.addEventListener('click', () => toast(b.dataset.toast));
+});
+document.getElementById('immersiveBtn').addEventListener('click', () => {
+  const on = document.body.classList.toggle('immersive');
+  if (on && document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen().catch(()=>{});
+  } else if (!on && document.fullscreenElement) {
+    document.exitFullscreen().catch(()=>{});
+  }
+  toast(on ? '已进入沉浸模式，按 1–9 直达舱段' : '已退出沉浸模式');
+});
+
+/* ============ 键盘 1-9 ============ */
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.metaKey || e.ctrlKey) return;
+  const n = e.key;
+  if (/^[1-9]$/.test(n)) {
+    const el = document.getElementById('bay-0' + n);
+    if (el) { el.scrollIntoView({behavior:'smooth', block:'center'}); toast('舱段 ' + n + ' · ' + BAYS[n-1].name); }
+  }
+});
+</script>
+</body>
+</html>
