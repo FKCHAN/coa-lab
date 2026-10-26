@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>单片机键盘操作模拟器 (实验七)</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --panel-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --display-bg: #000000;
+            --display-text: #ff3b30;
+            --btn-bg: #333333;
+            --btn-active: #555555;
+            --highlight: #0a84ff;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background-color: var(--panel-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-sizing: border-box;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        h2 { text-align: center; font-size: 1.2rem; margin-top: 0; }
+        
+        /* Display Panel */
+        .display-panel {
+            background-color: var(--display-bg);
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-family: 'Courier New', Courier, monospace;
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .main-display {
+            color: var(--display-text);
+            font-size: 1.8rem;
+            font-weight: bold;
+            text-align: center;
+            letter-spacing: 2px;
+            text-shadow: 0 0 5px var(--display-text);
+        }
+        .sub-display {
+            color: #34c759;
+            font-size: 1rem;
+            text-align: center;
+            margin-top: 5px;
+            min-height: 1.2em;
+        }
+
+        /* Switches */
+        .switches {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .switch-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .switch {
+            width: 40px;
+            height: 60px;
+            background-color: #444;
+            border-radius: 4px;
+            position: relative;
+            cursor: pointer;
+            border: 2px solid #222;
+        }
+        .switch::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 50%;
+            background-color: #888;
+            transition: all 0.2s;
+        }
+        .switch.on::after { top: 0; background-color: #34c759; }
+        .switch.off::after { bottom: 0; background-color: #ff3b30; }
+        .switch-label { margin-top: 5px; font-size: 0.9rem; font-weight: bold; }
+
+        /* Keypad */
+        .keypad {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+        button {
+            background-color: var(--btn-bg);
+            color: white;
+            border: 1px solid #555;
+            border-radius: 8px;
+            padding: 15px 5px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+        button:active { background-color: var(--btn-active); }
+        .btn-cmd { background-color: #0056b3; }
+        .btn-confirm { background-color: #28a745; }
+        .btn-reset { background-color: #dc3545; }
+        
+        /* Guide Box */
+        .guide-box {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #2c3e50;
+            border-left: 5px solid var(--highlight);
+            border-radius: 4px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>单片机键盘操作模拟器 (实验七)</h2>
+    
+    <div class="display-panel">
+        <div class="main-display" id="display">系统未启动</div>
+        <div class="sub-display" id="sub-display">请设置拨码开关并按 RESET</div>
+    </div>
+
+    <div class="switches">
+        <div class="switch-container">
+            <div class="switch off" id="sw-K1" onclick="toggleSwitch('K1')"></div>
+            <div class="switch-label">K1</div>
+        </div>
+        <div class="switch-container">
+            <div class="switch off" id="sw-K2" onclick="toggleSwitch('K2')"></div>
+            <div class="switch-label">K2</div>
+        </div>
+        <div class="switch-container">
+            <div class="switch off" id="sw-K3" onclick="toggleSwitch('K3')"></div>
+            <div class="switch-label">K3</div>
+        </div>
+        <div class="switch-container">
+            <div class="switch off" id="sw-K4" onclick="toggleSwitch('K4')"></div>
+            <div class="switch-label">K4(OFF)</div>
+        </div>
+    </div>
+
+    <div class="keypad">
+        <button onclick="press('C')">C</button>
+        <button onclick="press('D')">D</button>
+        <button onclick="press('E')">E</button>
+        <button onclick="press('F')">F</button>
+        
+        <button onclick="press('8')">8</button>
+        <button onclick="press('9')">9</button>
+        <button onclick="press('A')">A</button>
+        <button onclick="press('B')">B</button>
+        
+        <button onclick="press('4')">4</button>
+        <button onclick="press('5')">5</button>
+        <button onclick="press('6')">6</button>
+        <button onclick="press('7')">7</button>
+        
+        <button onclick="press('0')">0</button>
+        <button onclick="press('1')">1</button>
+        <button onclick="press('2')">2</button>
+        <button onclick="press('3')">3</button>
+        
+        <button class="btn-cmd" onclick="press('EXP_SEL')">实验选择</button>
+        <button class="btn-cmd" onclick="press('SINGLE')">单步</button>
+        <button class="btn-cmd" onclick="press('FULL')">全速</button>
+        <button class="btn-cmd" onclick="press('CANCEL')">取消</button>
+        
+        <button class="btn-reset" style="grid-column: span 2;" onclick="press('RESET')">RESET</button>
+        <button class="btn-confirm" style="grid-column: span 2;" onclick="press('CONFIRM')">确认</button>
+    </div>
+
+    <div class="guide-box" id="guide">
+        <strong>当前任务:</strong> 准备写微代码。<br>
+        请将开关拨为: K1=OFF, K2=ON, K3=OFF, K4=OFF。<br>
+        然后按【RESET】键。
+    </div>
+</div>
+
+<script>
+    // 系统状态
+    let switches = { K1: false, K2: false, K3: false, K4: false };
+    let state = "INIT"; 
+    let inputBuffer = "";
+    
+    // UI Elements
+    const display = document.getElementById('display');
+    const subDisplay = document.getElementById('sub-display');
+    const guide = document.getElementById('guide');
+
+    function toggleSwitch(id) {
+        switches[id] = !switches[id];
+        document.getElementById('sw-' + id).className = switches[id] ? 'switch on' : 'switch off';
+        checkSwitchState();
+    }
+
+    function checkSwitchState() {
+        if(switches.K4) {
+            updateGuide("警告: 键盘操作模式下 K4 必须为 OFF！");
+        }
+    }
+
+    function updateGuide(text) {
+        guide.innerHTML = "<strong>任务提示:</strong> " + text;
+    }
+
+    function press(key) {
+        if (switches.K4) {
+            display.innerText = "Error: K4 ON";
+            return;
+        }
+
+        // RESET 操作 (全局复位)
+        if (key === 'RESET') {
+            inputBuffer = "";
+            state = "CLASS_SELECT";
+            display.innerText = "CLASS SELECT";
+            
+            if(!switches.K1 && switches.K2 && !switches.K3) {
+                updateGuide("写微代码模式。请按【实验选择】键。");
+            } else if (switches.K1 && !switches.K2 && switches.K3) {
+                updateGuide("写/运行机器指令模式。请按【实验选择】键。");
+            } else {
+                updateGuide("请先按实验指导书设置正确的 K1-K3 开关状态！");
+            }
+            return;
+        }
+
+        // 状态机
+        switch (state) {
+            case "CLASS_SELECT":
+                if (key === 'EXP_SEL') {
+                    state = "EXP_INPUT";
+                    inputBuffer = "";
+                    display.innerText = "ES--__";
+                    updateGuide("请输入实验号 07 或 7，然后按【确认】。");
+                }
+                break;
+            
+            case "EXP_INPUT":
+                if (key === 'CONFIRM') {
+                    if (inputBuffer === "07" || inputBuffer === "7") {
+                        display.innerText = "ES07";
+                        state = "EXP_CONFIRM_WAIT";
+                        updateGuide("已选择实验7，再次按【确认】进入。");
+                    } else {
+                        display.innerText = "Err: Not 07";
+                        inputBuffer = "";
+                    }
+                } else if (key.length === 1 && inputBuffer.length < 2) {
+                    inputBuffer += key;
+                    display.innerText = "ES--" + inputBuffer.padStart(2, '_');
+                }
+                break;
+                
+            case "EXP_CONFIRM_WAIT":
+                if (key === 'CONFIRM') {
+                    if (!switches.K1 && switches.K2 && !switches.K3) {
+                        // 写微代码模式
+                        state = "CTL1_INPUT";
+                        inputBuffer = "";
+                        display.innerText = "CtL1=_";
+                        updateGuide("按 1 选择写微代码，然后按【确认】。");
+                    } else if (switches.K1 && !switches.K2 && switches.K3) {
+                        // 机器指令模式
+                        state = "CTL2_WAIT";
+                        display.innerText = "CtL1=_";
+                        updateGuide("处于机器指令模式，直接按【取消】键跳过 CtL1。");
+                    }
+                }
+                break;
+
+            case "CTL1_INPUT":
+                if (key === 'CONFIRM' && inputBuffer === "1") {
+                    display.innerText = "CtL1_1";
+                    setTimeout(() => {
+                        state = "MICRO_ADDR";
+                        inputBuffer = "";
+                        display.innerText = "U-Addr";
+                        subDisplay.innerText = "输入6位二进制微地址";
+                        updateGuide("请输入微地址 (例如 000000)，按【确认】。");
+                    }, 800);
+                } else if (key === '1') {
+                    inputBuffer = "1";
+                    display.innerText = "CtL1=1";
+                }
+                break;
+                
+            case "CTL2_WAIT":
+                if (key === 'CANCEL') {
+                    state = "CTL2_INPUT";
+                    inputBuffer = "";
+                    display.innerText = "CtL2=_";
+                    updateGuide("输入 1(写机器指令) 或 3(运行程序)，然后按【确认】。");
+                }
+                break;
+
+            case "CTL2_INPUT":
+                if (key === 'CONFIRM') {
+                    if (inputBuffer === "1") {
+                        display.innerText = "CtL2_1";
+                        state = "WRITE_RAM_WAIT";
+                        updateGuide("准备写RAM。请拨动实验箱上的 CLR 清零开关，然后按【确认】。");
+                    } else if (inputBuffer === "3") {
+                        display.innerText = "CtL2_3";
+                        state = "RUN_WAIT";
+                        updateGuide("准备运行程序。请拨动 CLR 清零，然后按【确认】。");
+                    }
+                } else if (key === '1' || key === '3') {
+                    inputBuffer = key;
+                    display.innerText = "CtL2=" + key;
+                }
+                break;
+            
+            case "WRITE_RAM_WAIT":
+                if (key === 'CONFIRM') {
+                    display.innerText = "PULSE";
+                    state = "WRITE_RAM_STEP";
+                    updateGuide("按【单步】键开始写入。");
+                }
+                break;
+                
+            case "WRITE_RAM_STEP":
+                if (key === 'SINGLE') {
+                    display.innerText = "010100"; // 模拟微地址指示灯
+                    subDisplay.innerText = "等待输入数据...";
+                    state = "RAM_DATA_INPUT";
+                    inputBuffer = "";
+                    updateGuide("请输入机器指令(如 0000)，然后按【确认】。");
+                }
+                break;
+                
+            case "RAM_DATA_INPUT":
+                if (key === 'CONFIRM') {
+                    display.innerText = "PULSE";
+                    state = "WRITE_RAM_STEP";
+                    subDisplay.innerText = "指令已录入，按【单步】继续下一条";
+                    updateGuide("按【单步】写入下一条，或按【取消】退出。");
+                } else if (key.length === 1 && inputBuffer.length < 4) {
+                    inputBuffer += key;
+                    display.innerText = "dAtA:" + inputBuffer;
+                }
+                break;
+
+            case "RUN_WAIT":
+                if (key === 'CONFIRM') {
+                    display.innerText = "run CodE";
+                    state = "RUNNING";
+                    updateGuide("按【单步】或【全速】运行程序。");
+                }
+                break;
+                
+            case "RUNNING":
+                if (key === 'SINGLE' || key === 'FULL') {
+                    display.innerText = "dAtA";
+                    subDisplay.innerText = "程序请求输入";
+                    state = "RUN_DATA_INPUT";
+                    inputBuffer = "";
+                    updateGuide("程序执行到 IN 指令。输入数据(如 8000)，按【确认】。");
+                }
+                break;
+                
+            case "RUN_DATA_INPUT":
+                if (key === 'CONFIRM') {
+                    display.innerText = "0001";
+                    subDisplay.innerText = "运算结果 (8000H 左移+1+右移)";
+                    state = "DONE";
+                    updateGuide("实验完成！数码管显示最终结果 0001。");
+                } else if (key.length === 1 && inputBuffer.length < 4) {
+                    inputBuffer += key;
+                    display.innerText = inputBuffer;
+                }
+                break;
+        }
+    }
+</script>
+</body>
+</html>
