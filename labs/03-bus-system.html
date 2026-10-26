@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>总线控制实验 (V6 终极实体版)</title>
+    <style>
+        body { background: #0f172a; color: #f8fafc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; padding: 20px; margin: 0;}
+        .container { background: #1e293b; padding: 25px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); width: 1200px; border: 2px solid #334155; }
+        h2 { margin-top: 0; color: #38bdf8; text-align: center; border-bottom: 2px solid #334155; padding-bottom: 15px;}
+        
+        /* 爆红警告 */
+        #conflict-warning { display: none; background: #ef4444; color: white; text-align: center; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 18px; margin-bottom: 20px; box-shadow: 0 0 20px #ef4444; animation: blink 0.5s infinite alternate; }
+        @keyframes blink { from { opacity: 1; } to { opacity: 0.6; } }
+
+        /* 面板布局 */
+        .panel { background: #0f172a; padding: 20px; border-radius: 10px; border: 1px solid #334155; margin-bottom: 20px; }
+        .panel-title { color: #fcd34d; font-size: 16px; font-weight: bold; margin-bottom: 15px; text-align: center; }
+        
+        /* 拨码开关组 */
+        .dip-bank { display: flex; gap: 8px; justify-content: center; background: #000; padding: 15px; border-radius: 8px; border: 1px solid #222; }
+        .dip-switch { display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
+        .dip-body { width: 24px; height: 50px; background: #475569; border: 2px solid #000; position: relative; border-radius: 3px; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); }
+        .dip-body.on { background: #ef4444; } /* 数据开关红色 */
+        .dip-body.ctrl-on { background: #a855f7; } /* 指令开关紫色 */
+        .dip-body.on::after, .dip-body.ctrl-on::after { top: auto; bottom: 0; border-radius: 0 0 2px 2px; }
+        .dip-body::after { content: ''; position: absolute; width: 100%; height: 50%; background: #fff; opacity: 0.4; top: 0; left: 0; border-radius: 2px 2px 0 0; transition: 0.1s; }
+        .dip-label { font-size: 11px; color: #94a3b8; font-family: monospace; font-weight: bold;}
+
+        /* 控制拨杆组 */
+        .ctrl-bank { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;}
+        .ctrl-btn-wrapper { display: flex; flex-direction: column; align-items: center; background: #1e293b; padding: 10px; border-radius: 8px; border: 1px solid #334155; width: 75px;}
+        .ctrl-btn { width: 45px; height: 45px; border-radius: 5px; cursor: pointer; border: 2px solid #000; background: #64748b; position: relative; box-shadow: inset 0 4px 6px rgba(255,255,255,0.2), inset 0 -4px 6px rgba(0,0,0,0.3); transition: all 0.1s;}
+        .ctrl-btn.active-low { background: #22c55e; box-shadow: 0 0 15px #22c55e; transform: translateY(2px); } /* 低电平0有效，绿色亮起 */
+        .ctrl-btn.active-high { background: #f59e0b; box-shadow: 0 0 15px #f59e0b; transform: translateY(2px); } /* 脉冲高电平1有效，橙色亮起 */
+        .ctrl-val { font-family: monospace; font-size: 16px; font-weight: bold; color: #fff; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-shadow: 1px 1px 2px #000;}
+
+        /* 总线与监视器 */
+        .bus-monitor { display: flex; gap: 20px; }
+        .bus-leds { display: flex; justify-content: center; gap: 6px; margin: 15px 0; background: #000; padding: 15px; border-radius: 8px; border: 1px solid #222;}
+        .led-box { display: flex; flex-direction: column; align-items: center; }
+        .led { width: 20px; height: 20px; border-radius: 50%; background: #1e293b; border: 1px solid #000; box-shadow: inset 0 2px 5px rgba(0,0,0,0.9); margin-bottom: 5px;}
+        .led.green.on { background: #22c55e; box-shadow: 0 0 15px #22c55e; }
+        .led.conflict { background: #ef4444; box-shadow: 0 0 20px #ef4444; animation: blink 0.2s infinite; }
+        
+        .state-box { background: #000; border: 1px solid #334155; padding: 15px; border-radius: 8px; flex: 1; text-align: center; font-family: monospace; font-size: 18px; color: #38bdf8;}
+        .state-title { color: #94a3b8; font-size: 12px; margin-bottom: 8px; font-family: sans-serif;}
+        
+        .display-tube { background: #000; border: 4px inset #334155; padding: 15px; border-radius: 8px; text-align: center; font-family: 'Courier New', monospace; font-size: 36px; font-weight: bold; color: #ef4444; text-shadow: 0 0 15px #ef4444; letter-spacing: 5px; height: 40px; display: flex; align-items: center; justify-content: center;}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🏆 附加实验：总线控制与微型计算机全系统协同</h2>
+    
+    <div id="conflict-warning">⚠️ 严重警告：总线冲突！(CA2输入门、ALU_G输出门、CE/WE读内存) 绝不能同时开启！</div>
+
+    <div class="panel">
+        <div class="panel-title">🎛️ 第一步：设定数据与运算指令</div>
+        <div style="display: flex; gap: 20px; justify-content: center;">
+            <div>
+                <div style="text-align:center; color:#94a3b8; font-size:12px; margin-bottom:5px;">数据总线拨码 (D15-D0) = <span id="dip-val-hex" style="color:#ef4444; font-weight:bold;">0000</span>H</div>
+                <div class="dip-bank" id="data-dip-bank"></div>
+            </div>
+            <div>
+                <div style="text-align:center; color:#94a3b8; font-size:12px; margin-bottom:5px;">运算指令 (S3 S2 S1 S0 M CN)</div>
+                <div class="dip-bank" id="cmd-dip-bank"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-title">🕹️ 第二步：控制总线门禁与发送操作脉冲 (按步骤顺序拨动)</div>
+        
+        <div style="text-align:center; color:#22c55e; font-size:12px; margin-bottom:10px;">🟢 三态门禁开关 (0有效：开门放行，1：关门隔离总线)</div>
+        <div class="ctrl-bank" id="gate-ctrl-bank"></div>
+        
+        <div style="text-align:center; color:#f59e0b; font-size:12px; margin-top:20px; margin-bottom:10px;">🟠 脉冲与寄存器动作开关 (拨动 0→1 产生上升沿触发)</div>
+        <div class="ctrl-bank" id="pulse-ctrl-bank"></div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-title">👁️ 第三步：观察总线状态与系统内部执行结果</div>
+        
+        <div style="text-align:center; color:#38bdf8; font-weight:bold; margin-bottom: 5px;">中央数据总线 (D_BUS) <span id="bus-hex" style="color:#fff;">0000 H</span></div>
+        <div class="bus-leds" id="bus-leds"></div>
+
+        <div class="bus-monitor">
+            <div class="state-box"><div class="state-title">LT1 寄存器 (被 LOAD 控制)</div><div id="lt1-val">0000 H</div></div>
+            <div class="state-box"><div class="state-title">LT2 寄存器 (被 AR 控制)</div><div id="lt2-val">0000 H</div></div>
+            <div class="state-box"><div class="state-title">地址寄存器 (被 LPC 控制)</div><div id="addr-val" style="color:#fcd34d;">00 H</div></div>
+            <div class="state-box"><div class="state-title">RAM当前地址数据 (受 CE/WE 控制)</div><div id="ram-val">0000 H</div></div>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <div class="state-title" style="text-align:center; font-size:14px; color:#ef4444;">数码管最终显示结果 (受 C 和 CA1 控制)</div>
+            <div class="display-tube" id="display-tube">----</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 硬件状态库 ---
+    let dips_data = Array(16).fill(0); // D15-D0
+    let dips_cmd = [1,0,0,1,0,1];      // S3,S2,S1,S0,M,CN (默认100101加法)
+    
+    // 三态门 (1=关, 0=开) -> 步骤2要求初始化全为1
+    let gates = { 'CA2': 1, 'ALU_G': 1, 'CE': 1, 'WE': 1, 'CA1': 1 };
+    
+    // 脉冲/动作开关 (1或0) -> 步骤2要求初始化
+    let pulses = { 'LOAD': 0, 'AR': 0, 'LPC': 0, 'C': 1, 'A': 1, 'B': 1 };
+    
+    // 内部寄存器
+    let REG_LT1 = 0, REG_LT2 = 0, REG_ADDR = 0;
+    let RAM = Array(256).fill(0);
+    let DISPLAY_REG = null; // 数码管缓冲
+    let BUS_VAL = 0;
+    let BUS_CONFLICT = false;
+
+    // --- UI 初始化 ---
+    function createDip(containerId, count, dataArr, isCmd, labels) {
+        const bank = document.getElementById(containerId);
+        for(let i=0; i<count; i++) {
+            const div = document.createElement('div'); div.className = 'dip-switch';
+            const bodyClass = dataArr[i] ? (isCmd ? 'dip-body ctrl-on' : 'dip-body on') : 'dip-body';
+            const labelStr = labels ? labels[i] : `D${count-1-i}`;
+            div.innerHTML = `<div class="${bodyClass}" id="${containerId}-${i}"></div><div class="dip-label">${labelStr}</div>`;
+            div.onclick = () => {
+                dataArr[i] = 1 - dataArr[i];
+                div.querySelector('.dip-body').className = dataArr[i] ? (isCmd ? 'dip-body ctrl-on' : 'dip-body on') : 'dip-body';
+                updateSystemState(null); // 拨码改变，实时更新总线
+            };
+            bank.appendChild(div);
+        }
+    }
+    createDip('data-dip-bank', 16, dips_data, false);
+    createDip('cmd-dip-bank', 6, dips_cmd, true, ['S3','S2','S1','S0','M','CN']);
+
+    function createCtrls(containerId, stateObj, isGate) {
+        const bank = document.getElementById(containerId);
+        for(let key in stateObj) {
+            const div = document.createElement('div'); div.className = 'ctrl-btn-wrapper';
+            const isActive = isGate ? (stateObj[key] === 0) : (stateObj[key] === 1);
+            const activeClass = isActive ? (isGate ? 'active-low' : 'active-high') : '';
+            div.innerHTML = `<div class="ctrl-btn ${activeClass}" id="btn-${key}"><span class="ctrl-val">${stateObj[key]}</span></div><div style="font-size:11px; color:#cbd5e1; margin-top:5px; font-weight:bold;">${key}</div>`;
+            
+            div.onclick = () => {
+                let oldVal = stateObj[key];
+                stateObj[key] = 1 - stateObj[key];
+                let newVal = stateObj[key];
+                
+                // 更新UI
+                const btn = div.querySelector('.ctrl-btn');
+                btn.querySelector('.ctrl-val').innerText = newVal;
+                const isAct = isGate ? (newVal === 0) : (newVal === 1);
+                btn.className = `ctrl-btn ${isAct ? (isGate ? 'active-low' : 'active-high') : ''}`;
+                
+                // 触发系统状态更新 (传入是谁发生了变化，用于捕获边沿脉冲)
+                updateSystemState({ key: key, old: oldVal, new: newVal, type: isGate ? 'gate' : 'pulse' });
+            };
+            bank.appendChild(div);
+        }
+    }
+    createCtrls('gate-ctrl-bank', gates, true);
+    createCtrls('pulse-ctrl-bank', pulses, false);
+
+    const busLeds = document.getElementById('bus-leds');
+    for(let i=15; i>=0; i--) busLeds.innerHTML += `<div class="led-box"><div class="led green" id="led-d${i}"></div><div style="font-size:9px; color:#64748b;">D${i}</div></div>`;
+
+    // --- 核心物理引擎 (每一根线的意图) ---
+    function updateSystemState(trigger) {
+        // 1. 获取拨码数据
+        let dataVal = 0; for(let i=0; i<16; i++) if(dips_data[i]) dataVal += Math.pow(2, 15-i);
+        document.getElementById('dip-val-hex').innerText = dataVal.toString(16).toUpperCase().padStart(4, '0');
+
+        // 2. ALU 实时计算 (S3-S0, M, CN)
+        let S = (dips_cmd[0]<<3)|(dips_cmd[1]<<2)|(dips_cmd[2]<<1)|dips_cmd[3];
+        let M = dips_cmd[4], CN = dips_cmd[5];
+        let aluOut = 0;
+        // 简化的加法逻辑 (100101 = S=9, M=0, CN=1 => A+B 无进位)
+        if(M === 0 && S === 9 && CN === 1) aluOut = (REG_LT1 + REG_LT2) & 0xFFFF;
+        else if (M === 0 && S === 9 && CN === 0) aluOut = (REG_LT1 + REG_LT2 + 1) & 0xFFFF;
+        else aluOut = 0xFFFF; // 演示中其他指令略，直接输出FFFF示意
+
+        // 3. 解决总线竞争 (谁在往马路上扔数据？)
+        let drivers = 0;
+        if(gates['CA2'] === 0) { BUS_VAL = dataVal; drivers++; } // 输入门开
+        if(gates['ALU_G'] === 0) { BUS_VAL = aluOut; drivers++; } // ALU门开
+        if(gates['CE'] === 0 && gates['WE'] === 1) { BUS_VAL = RAM[REG_ADDR]; drivers++; } // RAM读模式开
+
+        BUS_CONFLICT = (drivers > 1);
+        if(drivers === 0) BUS_VAL = 0; // 高阻态
+
+        // 4. 边沿脉冲检测 (接收数据的操作)
+        if(trigger && trigger.type === 'pulse' && !BUS_CONFLICT) {
+            // 0 -> 1 上升沿有效
+            if(trigger.key === 'LOAD' && trigger.old === 0 && trigger.new === 1) REG_LT1 = BUS_VAL;
+            if(trigger.key === 'AR' && trigger.old === 0 && trigger.new === 1) REG_LT2 = BUS_VAL;
+            if(trigger.key === 'LPC' && trigger.old === 0 && trigger.new === 1) REG_ADDR = BUS_VAL & 0xFF;
+            
+            // C 是 1 -> 0 下降沿有效 (指导书："W/R下降沿将数据打入显示")
+            if(trigger.key === 'C' && trigger.old === 1 && trigger.new === 0) DISPLAY_REG = BUS_VAL;
+        }
+
+        // 5. RAM 写入 (电平有效)
+        if(!BUS_CONFLICT && gates['CE'] === 0 && gates['WE'] === 0) {
+            RAM[REG_ADDR] = BUS_VAL;
+        }
+
+        renderUI();
+    }
+
+    function renderUI() {
+        const warn = document.getElementById('conflict-warning');
+        warn.style.display = BUS_CONFLICT ? 'block' : 'none';
+
+        for(let i=0; i<16; i++) {
+            const led = document.getElementById(`led-d${15-i}`);
+            led.className = 'led green';
+            if(BUS_CONFLICT) led.className = 'led conflict';
+            else if(!((BUS_VAL >> (15-i)) & 1)) led.classList.remove('on');
+            else led.classList.add('on');
+        }
+        document.getElementById('bus-hex').innerText = BUS_CONFLICT ? "ERROR" : BUS_VAL.toString(16).toUpperCase().padStart(4, '0') + " H";
+
+        document.getElementById('lt1-val').innerText = REG_LT1.toString(16).toUpperCase().padStart(4, '0') + " H";
+        document.getElementById('lt2-val').innerText = REG_LT2.toString(16).toUpperCase().padStart(4, '0') + " H";
+        document.getElementById('addr-val').innerText = REG_ADDR.toString(16).toUpperCase().padStart(2, '0') + " H";
+        document.getElementById('ram-val').innerText = RAM[REG_ADDR].toString(16).toUpperCase().padStart(4, '0') + " H";
+
+        const tube = document.getElementById('display-tube');
+        if(gates['CA1'] === 0 && DISPLAY_REG !== null) {
+            tube.innerText = DISPLAY_REG.toString(16).toUpperCase().padStart(4, '0');
+        } else {
+            tube.innerText = "----";
+        }
+    }
+
+    // 初始渲染
+    updateSystemState(null);
+</script>
+</body>
+</html>
