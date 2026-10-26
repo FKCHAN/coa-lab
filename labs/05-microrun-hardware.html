@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>实验五：微程序设计 (全物理拨码版)</title>
+    <style>
+        body { background: #0f172a; color: #f8fafc; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; padding: 20px; margin: 0;}
+        .container { background: #1e293b; padding: 25px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); max-width: 1250px; width: 100%; border: 2px solid #334155; display: flex; gap: 20px;}
+        
+        .main-board { flex: 3; }
+        .sidebar { flex: 1; background: #0b1120; border-radius: 8px; border: 1px solid #1e293b; padding: 15px; display: flex; flex-direction: column; max-height: 880px;}
+        
+        h2 { margin-top: 0; color: #10b981; text-align: center; border-bottom: 2px solid #334155; padding-bottom: 15px;}
+        
+        #conflict-warning { display: none; background: #ef4444; color: white; text-align: center; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 16px; margin-bottom: 20px; box-shadow: 0 0 20px #ef4444; animation: blink 0.3s infinite; }
+        @keyframes blink { from { opacity: 1; } to { opacity: 0.5; } }
+
+        .panel { background: #0f172a; padding: 20px; border-radius: 10px; border: 1px solid #334155; margin-bottom: 20px; }
+        .panel-title { color: #fcd34d; font-size: 15px; font-weight: bold; margin-bottom: 15px; text-align: center; }
+
+        /* 物理锁控制台 */
+        .hw-locks { display: flex; justify-content: space-evenly; align-items: center; background: #000; padding: 15px; border-radius: 8px; border: 1px solid #1e293b;}
+        .lock-btn { width: 60px; height: 35px; background: #475569; border: 2px solid #111; border-radius: 20px; cursor: pointer; position: relative; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5); transition: 0.2s;}
+        .lock-btn::after { content: 'OFF'; position: absolute; width: 30px; height: 30px; background: #94a3b8; border-radius: 50%; top: 1px; left: 2px; box-shadow: 1px 1px 3px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; font-size: 10px; color: #000; font-weight: bold; transition: 0.2s;}
+        .lock-btn.on { background: #10b981; }
+        .lock-btn.on::after { left: 25px; content: 'ON'; background: #fff; color: #10b981;}
+        .lock-btn.clr-on { background: #ef4444; }
+        .lock-btn.clr-on::after { left: 25px; content: 'ON'; background: #fff; color: #ef4444;}
+        .lock-wrapper { display: flex; flex-direction: column; align-items: center; gap: 8px;}
+        .lock-label { font-size: 12px; font-weight: bold; color: #cbd5e1;}
+
+        /* 拨码开关组 */
+        .dip-monitor { text-align: center; color: #38bdf8; font-family: monospace; font-size: 20px; font-weight: bold; margin-bottom: 15px; background: #000; padding: 8px; border-radius: 4px; border: 1px solid #1e293b;}
+        .dip-bank { display: flex; gap: 6px; justify-content: center; background: #000; padding: 15px; border-radius: 8px; border: 1px solid #222; flex-wrap: wrap;}
+        .dip-switch { display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
+        .dip-body { width: 22px; height: 45px; background: #334155; border: 2px solid #000; position: relative; border-radius: 3px; box-shadow: inset 0 0 8px rgba(0,0,0,0.8); }
+        .dip-body.on { background: #ef4444; } 
+        .dip-body.addr-on { background: #f59e0b; } 
+        .dip-body.on::after, .dip-body.addr-on::after { top: auto; bottom: 0; border-radius: 0 0 2px 2px; }
+        .dip-body::after { content: ''; position: absolute; width: 100%; height: 50%; background: #fff; opacity: 0.35; top: 0; left: 0; border-radius: 2px 2px 0 0; }
+        .dip-label { font-size: 10px; color: #64748b; font-family: monospace; font-weight: bold;}
+        .dip-group-separator { width: 4px; background: #1e293b; margin: 0 2px; }
+
+        /* 脉冲与 LED */
+        .pulse-btn { background-color: #38bdf8; color: #000; border: 2px solid #0284c7; border-radius: 8px; padding: 15px; font-size: 18px; font-weight: bold; cursor: pointer; width: 100%; box-shadow: 0 5px 0 #0284c7; transition: all 0.1s; margin-bottom: 20px; }
+        .pulse-btn:active { transform: translateY(5px); box-shadow: 0 0 0 #0284c7; }
+
+        .led-panel { display: flex; justify-content: center; gap: 4px; background: #000; padding: 15px; border-radius: 8px; border: 1px solid #222;}
+        .led-box { display: flex; flex-direction: column; align-items: center; }
+        .led { width: 16px; height: 16px; border-radius: 50%; background: #1e293b; border: 1px solid #000; box-shadow: inset 0 2px 5px rgba(0,0,0,0.9); margin-bottom: 4px;}
+        .led.green.on { background: #22c55e; box-shadow: 0 0 12px #22c55e; }
+        .led.yellow.on { background: #facc15; box-shadow: 0 0 12px #facc15; }
+        .led.conflict { background: #ef4444; box-shadow: 0 0 15px #ef4444; animation: blink 0.2s infinite; }
+
+        /* 上帝视角 ROM */
+        .rom-header { color: #10b981; text-align: center; margin-bottom: 10px; border-bottom: 1px solid #1e293b; padding-bottom: 10px;}
+        .rom-list { overflow-y: auto; flex-grow: 1; font-family: monospace; font-size: 13px; }
+        .rom-row { display: flex; justify-content: space-between; padding: 6px 8px; border-bottom: 1px solid #1e293b; }
+        .rom-row .r-addr { color: #facc15; }
+        .rom-row .r-data { color: #22c55e; }
+        .rom-row.active { background: #1e40af; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="main-board">
+        <h2>🚀 实验五：微程序控制器 (纯物理拨码全自动版)</h2>
+        
+        <div id="conflict-warning">🚨 致命错误：数据总线冲突！K3(芯片输出) 与 K4(拨码输入) 绝不能同时开启！</div>
+
+        <div class="panel">
+            <div class="panel-title">🔐 系统权限门禁 (K1 - K4 & CLR)</div>
+            <div class="hw-locks">
+                <div class="lock-wrapper"><div class="lock-btn" id="btn-k1" onclick="toggleK(1)"></div><div class="lock-label">K1 (运行锁)</div></div>
+                <div class="lock-wrapper"><div class="lock-btn" id="btn-k2" onclick="toggleK(2)"></div><div class="lock-label">K2 (写允许)</div></div>
+                <div class="lock-wrapper"><div class="lock-btn" id="btn-k3" onclick="toggleK(3)"></div><div class="lock-label">K3 (输出允许)</div></div>
+                <div class="lock-wrapper"><div class="lock-btn" id="btn-k4" onclick="toggleK(4)"></div><div class="lock-label">K4 (24位输入大门)</div></div>
+                <div style="border-left: 2px dashed #334155; height: 40px; margin: 0 10px;"></div>
+                <div class="lock-wrapper"><div class="lock-btn" id="btn-clr" onclick="toggleClr()"></div><div class="lock-label" style="color:#ef4444;">CLR (硬件清零)</div></div>
+            </div>
+            <div style="text-align:center; font-size:12px; color:#64748b; margin-top:10px;">
+                💡 写代码：K1关, K2开, K3关, K4开 &nbsp;&nbsp;|&nbsp;&nbsp; 读代码：K1关, K2关, K3开, K4关 &nbsp;&nbsp;|&nbsp;&nbsp; <b style="color:#facc15;">运行程序：K1开, K2关, K3开, K4关</b>
+            </div>
+        </div>
+
+        <div class="panel" id="dip-panel">
+            <div class="panel-title">🎛️ 物理拨码输入台 (K1 或 K4 开启时被屏蔽)</div>
+            
+            <div style="margin-bottom: 20px;">
+                <div class="dip-monitor">手工拨码地址 (uA5-uA0): <span id="addr-hex" style="color:#facc15;">000000</span> (Bin)</div>
+                <div class="dip-bank" id="addr-dip-bank"></div>
+            </div>
+
+            <div>
+                <div class="dip-monitor">手工拨码指令 (MS24-MS1): <span id="data-hex" style="color:#ef4444;">000000</span> (Hex)</div>
+                <div class="dip-bank" id="data-dip-bank"></div>
+            </div>
+        </div>
+
+        <button class="pulse-btn" id="pulseBtn" onclick="triggerPulse()">⚡ 按下脉冲触发器 (单步时钟 T1)</button>
+
+        <div class="panel">
+            <div class="panel-title">👁️ 系统总线监视面板</div>
+            <div style="text-align:center; color:#facc15; font-size:12px; margin-bottom:5px;">🟨 微地址总线 (受 K1 和 CLR 控制)</div>
+            <div class="led-panel" id="addr-leds" style="margin-bottom: 15px;"></div>
+            
+            <div style="text-align:center; color:#22c55e; font-size:12px; margin-bottom:5px;">🟩 24位微指令总线 (受 K3 或 K4 控制)</div>
+            <div class="led-panel" id="data-leds"></div>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <h3 class="rom-header">📖 2816 控制存储器<br><span style="font-size:11px; color:#64748b;">(已为您预置表5-3全部代码)</span></h3>
+        <div class="rom-list" id="rom-list"></div>
+    </div>
+</div>
+
+<script>
+    // --- 状态数据 ---
+    let K = { 1: false, 2: false, 3: false, 4: false }; 
+    let CLR = false;
+    let dip_addr = Array(6).fill(0); 
+    let dip_data = Array(24).fill(0); 
+    let ROM = Array(64).fill("000000"); 
+    
+    // 预置表 5-3 的连续微代码
+    ROM[parseInt('000000', 2)] = '000001';
+    ROM[parseInt('000001', 2)] = '000002';
+    ROM[parseInt('000010', 2)] = '000003';
+    ROM[parseInt('000011', 2)] = '015FC4';
+    ROM[parseInt('000100', 2)] = '012FC8';
+    ROM[parseInt('001000', 2)] = '018E09';
+    ROM[parseInt('001001', 2)] = '005B50';
+    ROM[parseInt('010000', 2)] = '005B55';
+    ROM[parseInt('010101', 2)] = '06F3D8';
+    ROM[parseInt('011000', 2)] = 'FF73D9';
+    ROM[parseInt('011001', 2)] = '017E00';
+    
+    let internal_pc_addr = 0; // 机器内部的自动地址计数器
+    let active_addr_val = 0;  // 实际呈现在地址总线上的地址
+    let bus_data_val = "000000"; 
+    let bus_conflict = false;
+
+    // --- UI 生成 ---
+    function toggleK(num) {
+        K[num] = !K[num];
+        document.getElementById('btn-k' + num).className = K[num] ? 'lock-btn on' : 'lock-btn';
+        if(num === 1 && !K[1]) internal_pc_addr = getDipAddr(); // K1关掉时，内部PC同步为拨码地址
+        resolveBus();
+    }
+    
+    function toggleClr() {
+        CLR = !CLR;
+        document.getElementById('btn-clr').className = CLR ? 'lock-btn clr-on' : 'lock-btn';
+        if(CLR) internal_pc_addr = 0; // 硬件清零瞬间，内部PC归零
+        resolveBus();
+    }
+
+    const addrBank = document.getElementById('addr-dip-bank');
+    for(let i=0; i<6; i++) {
+        const div = document.createElement('div'); div.className = 'dip-switch';
+        div.innerHTML = `<div class="dip-body" id="dip-a${5-i}"></div><div class="dip-label">uA${5-i}</div>`;
+        div.onclick = () => {
+            dip_addr[i] = 1 - dip_addr[i];
+            div.querySelector('.dip-body').className = dip_addr[i] ? 'dip-body addr-on' : 'dip-body';
+            updateDipHex();
+        };
+        addrBank.appendChild(div);
+    }
+
+    const dataBank = document.getElementById('data-dip-bank');
+    for(let i=0; i<24; i++) {
+        const div = document.createElement('div'); div.className = 'dip-switch';
+        div.innerHTML = `<div class="dip-body" id="dip-d${23-i}"></div><div class="dip-label" style="font-size:9px;">M${24-i}</div>`;
+        div.onclick = () => {
+            dip_data[i] = 1 - dip_data[i];
+            div.querySelector('.dip-body').className = dip_data[i] ? 'dip-body on' : 'dip-body';
+            updateDipHex();
+        };
+        dataBank.appendChild(div);
+        if((i+1)%4 === 0 && i !== 23) {
+            const sep = document.createElement('div'); sep.className = 'dip-group-separator'; dataBank.appendChild(sep);
+        }
+    }
+
+    const aLeds = document.getElementById('addr-leds');
+    for(let i=5; i>=0; i--) aLeds.innerHTML += `<div class="led-box"><div class="led yellow" id="led-a${i}"></div><div style="font-size:9px; color:#64748b;">uA${i}</div></div>`;
+    
+    const dLeds = document.getElementById('data-leds');
+    for(let i=23; i>=0; i--) dLeds.innerHTML += `<div class="led-box"><div class="led green" id="led-d${i}"></div><div style="font-size:8px; color:#64748b;">${i+1}</div></div>`;
+    
+    // --- 核心逻辑引擎 ---
+    function getDipAddr() { return parseInt(dip_addr.join(''), 2); }
+    
+    function updateDipHex() {
+        document.getElementById('addr-hex').innerText = dip_addr.join('');
+        let dStr = "";
+        for(let i=0; i<6; i++) { 
+            let nibble = (dip_data[i*4]<<3) | (dip_data[i*4+1]<<2) | (dip_data[i*4+2]<<1) | dip_data[i*4+3];
+            dStr += nibble.toString(16).toUpperCase();
+        }
+        document.getElementById('data-hex').innerText = dStr;
+        if(!K[1]) internal_pc_addr = getDipAddr(); // 非运行态下，内部PC跟着拨码走
+        resolveBus(); 
+    }
+
+    function resolveBus() {
+        bus_conflict = (K[3] && K[4]);
+        document.getElementById('conflict-warning').style.display = bus_conflict ? 'block' : 'none';
+
+        // 1. 决定真实的地址总线 (K1 是总闸)
+        if (CLR) {
+            active_addr_val = 0; // CLR 强制霸占地址线为 0
+        } else if (K[1]) {
+            active_addr_val = internal_pc_addr; // K1开，地址线被机器内部PC接管
+        } else {
+            active_addr_val = getDipAddr(); // K1关，地址线是你手工拨的码
+        }
+
+        // 2. 决定真实的数据总线
+        if (bus_conflict) {
+            bus_data_val = "ERROR";
+        } else if (K[4] && !K[3]) {
+            bus_data_val = document.getElementById('data-hex').innerText; // 物理拨码上路
+        } else if (K[3] && !K[4]) {
+            bus_data_val = ROM[active_addr_val]; // ROM 吐出数据
+        } else {
+            bus_data_val = "000000"; // 高阻
+        }
+
+        // 3. UI 暗示：如果K1或K4接管，让对应的物理拨码变暗
+        document.getElementById('addr-dip-bank').style.opacity = (K[1] || CLR) ? "0.3" : "1";
+        document.getElementById('data-dip-bank').style.opacity = (K[4] ? "1" : "0.3");
+
+        renderLEDs();
+        renderROM();
+    }
+
+    function triggerPulse() {
+        if(bus_conflict) return; 
+        
+        // 【写模式】：K2=ON (允许写), K3=OFF (不输出), K4=ON (允许拨码输入)
+        if (K[2] && !K[3] && K[4]) {
+            ROM[active_addr_val] = document.getElementById('data-hex').innerText;
+        }
+        
+        // 【自动运行模式】：K1=ON (自动寻址), K2=OFF (保护), K3=ON (允许芯片输出), K4=OFF (切断拨码)
+        if (K[1] && !K[2] && K[3] && !K[4] && !CLR) {
+            // 核心魔法：从当前指令中抠出下一跳地址！
+            let currentInst = ROM[active_addr_val];
+            // 取指令的最后6位 (即16进制的最后2位，并与 0x3F 取与)
+            let nextAddr = parseInt(currentInst.substring(4, 6), 16) & 0x3F;
+            
+            // 将内部 PC 更新为下一跳
+            internal_pc_addr = nextAddr;
+        }
+        
+        resolveBus();
+    }
+
+    function renderLEDs() {
+        for(let i=0; i<6; i++) {
+            const led = document.getElementById(`led-a${5-i}`);
+            let binStr = active_addr_val.toString(2).padStart(6, '0');
+            if(binStr[i] === '1') led.classList.add('on'); else led.classList.remove('on');
+        }
+
+        for(let i=0; i<24; i++) {
+            const led = document.getElementById(`led-d${23-i}`);
+            led.className = 'led green'; 
+            if(bus_conflict) {
+                led.classList.add('conflict');
+            } else if (bus_data_val !== "000000") {
+                let binStr = parseInt(bus_data_val, 16).toString(2).padStart(24, '0');
+                if(binStr[i] === '1') led.classList.add('on');
+            }
+        }
+    }
+
+    function renderROM() {
+        const list = document.getElementById('rom-list');
+        list.innerHTML = '';
+        for(let i=0; i<64; i++) {
+            const binAddr = i.toString(2).padStart(6, '0');
+            const data = ROM[i];
+            if (data !== "000000" || i === active_addr_val) {
+                const active = (i === active_addr_val) ? 'active' : '';
+                list.innerHTML += `<div class="rom-row ${active}"><span class="r-addr">[${binAddr}]</span><span class="r-data">${data}</span></div>`;
+            }
+        }
+    }
+
+    updateDipHex();
+</script>
+
+</body>
+</html>
