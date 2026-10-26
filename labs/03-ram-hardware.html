@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实验三：纯硬件拨码 RAM读写模拟器 (V4版)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212; color: #eceff1; margin: 0; padding: 15px;
+            display: flex; justify-content: center;
+        }
+        .container {
+            background: #1e272e; padding: 25px; border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.9); max-width: 1100px; width: 100%;
+            border: 2px solid #37474f; display: flex; gap: 20px;
+        }
+        .main-board { flex: 3; }
+        .ram-sidebar { flex: 1; background: #111; border-radius: 8px; border: 1px solid #333; padding: 15px; display: flex; flex-direction: column;}
+        
+        h2 { margin-top: 0; color: #80cbc4; text-align: center; border-bottom: 2px solid #37474f; padding-bottom: 15px;}
+        
+        #conflict-warning {
+            display: none; background-color: #d32f2f; color: white; text-align: center;
+            padding: 10px; border-radius: 6px; font-weight: bold; font-size: 16px;
+            margin-bottom: 20px; animation: blink 0.5s infinite alternate;
+        }
+        @keyframes blink { from { opacity: 1; } to { opacity: 0.5; } }
+
+        .panel {
+            background: #263238; padding: 15px; border-radius: 8px;
+            border: 1px solid #37474f; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5); margin-bottom: 20px;
+        }
+        .panel h3 { margin-top: 0; font-size: 15px; color: #ffcc80; text-align: center; margin-bottom: 15px;}
+
+        /* 拨码区 */
+        .dip-switch-area { background: #111; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #000; }
+        .dip-monitor {
+            text-align: center; color: #4dd0e1; font-family: monospace; font-size: 20px; font-weight: bold;
+            margin-bottom: 15px; background: #000; padding: 8px; border-radius: 4px; border: 1px solid #222;
+        }
+        .dip-groups { display: flex; justify-content: space-between; }
+        .nibble-group { display: flex; gap: 6px; background: #222; padding: 8px; border-radius: 6px; border: 1px solid #000; }
+        .dip-single { display: flex; flex-direction: column; align-items: center; }
+        .dip-btn {
+            width: 24px; height: 45px; background: #78909c; border: 2px solid #000; border-radius: 4px;
+            cursor: pointer; position: relative; box-shadow: inset 0 0 8px rgba(0,0,0,0.6); transition: background 0.1s;
+        }
+        .dip-btn.data.active { background: #ef5350; } 
+        .dip-btn::after { content: ''; position: absolute; width: 100%; height: 50%; background: #fff; opacity: 0.35; top: 0; left: 0; border-radius: 2px 2px 0 0; }
+        .dip-btn.active::after { top: auto; bottom: 0; border-radius: 0 0 2px 2px; }
+        .dip-label { font-size: 11px; color: #b0bec5; margin-top: 6px; font-family: monospace; font-weight: bold;}
+
+        /* 控制开关 */
+        .control-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .control-row {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #1e272e; padding: 10px 15px; border-radius: 6px; border: 1px solid #2f3640;
+        }
+        label { font-size: 13px; font-weight: bold; color: #b0bec5; }
+        .toggle-switch {
+            padding: 8px; font-size: 13px; border: 1px solid #222; border-radius: 4px;
+            color: #000; outline: none; text-align: center; font-weight: bold; cursor: pointer; width: 140px;
+        }
+        .sw-red { background: #ef5350; color: #fff;}
+        .sw-green { background: #66bb6a; color: #000;}
+        .sw-blue { background: #29b6f6; color: #000;}
+        .sw-gray { background: #78909c; color: #fff;}
+        .sw-purple { background: #ab47bc; color: #fff;}
+
+        /* 脉冲与总线 */
+        .pulse-btn {
+            background-color: #fbc02d; color: #000; border: 2px solid #f57f17; border-radius: 8px;
+            padding: 15px; font-size: 18px; font-weight: bold; cursor: pointer; width: 100%;
+            box-shadow: 0 5px 0 #f57f17; transition: all 0.1s; margin-bottom: 20px;
+        }
+        .pulse-btn:active { transform: translateY(5px); box-shadow: 0 0 0 #f57f17; }
+
+        .bus-flex { display: flex; gap: 15px; }
+        .bus-container {
+            background: #0a0a0a; padding: 15px; border-radius: 10px; border: 2px solid #37474f;
+            text-align: center; flex: 2;
+        }
+        .bus-container.addr { flex: 1; border-color: #f57f17; }
+        .bus-title { margin-bottom: 15px; font-weight: bold; font-size: 14px;}
+        .led-grid { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; }
+        .led-box { display: flex; flex-direction: column; align-items: center; }
+        .led {
+            width: 18px; height: 18px; border-radius: 50%; background: #222;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.9); margin-bottom: 5px; border: 1px solid #000;
+        }
+        .led.green.on { background: #00e676; box-shadow: 0 0 12px #00e676; }
+        .led.yellow.on { background: #ffca28; box-shadow: 0 0 12px #ffca28; }
+        .led.hz { background: #333; opacity: 0.5; }
+        .led.conflict { background: #f44336; box-shadow: 0 0 15px #f44336; animation: blink 0.3s infinite;}
+        .bus-hex { font-size: 22px; font-family: monospace; color: #fff; margin-top: 10px; font-weight: bold;}
+
+        /* 上帝视角 RAM 列表 */
+        .ram-header { color: #4fc3f7; text-align: center; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px;}
+        .ram-list { overflow-y: auto; flex-grow: 1; font-family: monospace; font-size: 14px; }
+        .ram-row { display: flex; justify-content: space-between; padding: 6px 8px; border-bottom: 1px solid #222; }
+        .ram-row .r-addr { color: #ffca28; }
+        .ram-row .r-data { color: #00e676; }
+        .ram-row.active { background: #1565c0; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="main-board">
+        <h2>💾 实验三：纯手工物理拨码 RAM读写控制 (V4版)</h2>
+        <div id="conflict-warning">⚠️ 严重警告：总线冲突！数据输入门(C-G)与RAM输出模式同时开启！</div>
+
+        <div class="panel">
+            <h3>🎛️ 数据/地址 通用物理拨码区</h3>
+            <div class="dip-switch-area">
+                <div class="dip-monitor">当前拨码状态: <span id="dip-hex-display">00FF</span> H</div>
+                <div class="dip-groups" id="dip-container"></div>
+            </div>
+            
+            <div class="control-grid">
+                <div class="control-row">
+                    <label>C-G (输入大门)</label>
+                    <select id="cg-switch" class="toggle-switch sw-red">
+                        <option value="1" selected>1 (关门 物理断开)</option>
+                        <option value="0">0 (开门 拨码上路)</option>
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label>LAR (地址小哥)</label>
+                    <select id="lar-switch" class="toggle-switch sw-gray">
+                        <option value="0" selected>0 (锁死地址)</option>
+                        <option value="1">1 (听脉冲抓地址)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>🏭 6116 RAM 大仓库控制</h3>
+            <div class="control-grid">
+                <div class="control-row">
+                    <label>CE (卷帘门使能)</label>
+                    <select id="ce-switch" class="toggle-switch sw-red">
+                        <option value="1" selected>1 (关门 休眠)</option>
+                        <option value="0">0 (开门 营业)</option>
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label>WE (读写指令)</label>
+                    <select id="we-switch" class="toggle-switch sw-blue">
+                        <option value="0" selected>0 (取件 Read)</option>
+                        <option value="1">1 (存件 Write)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <button class="pulse-btn" id="pulseBtn">⚡ 按下快门 (发送时钟脉冲 T3)</button>
+
+        <div class="bus-flex">
+            <div class="bus-container">
+                <div class="bus-title" style="color: #00e676;">🟩 数据总线 (Data Bus)</div>
+                <div class="led-grid" id="data-led-grid"></div>
+                <div class="bus-hex" id="dataHex">----</div>
+            </div>
+            <div class="bus-container addr">
+                <div class="bus-title" style="color: #ffca28;">🟨 地址总线 (AR)</div>
+                <div class="led-grid" id="addr-led-grid"></div>
+                <div class="bus-hex" id="addrHex" style="color:#ffca28;">00 H</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="ram-sidebar">
+        <h3 class="ram-header">🔍 RAM 监视器<br><span style="font-size:11px; color:#777;">(上帝视角实时状态)</span></h3>
+        <div class="ram-list" id="ram-list"></div>
+    </div>
+</div>
+
+<script>
+    // 默认拨码 00FF
+    let dipSwitches = [0,0,0,0, 0,0,0,0, 1,1,1,1, 1,1,1,1];
+    
+    let AR = 0; // 地址小哥手里的地址
+    let RAM = new Array(256).fill(0); // 内存数组
+    let busState = { mode: 'HZ', val: 0 }; // 数据总线状态
+
+    // 初始化拨码UI
+    const dipContainer = document.getElementById('dip-container');
+    for (let group = 0; group < 4; group++) {
+        const nibbleDiv = document.createElement('div');
+        nibbleDiv.className = 'nibble-group';
+        for (let bit = 3; bit >= 0; bit--) {
+            const i = (3 - group) * 4 + bit; 
+            const singleDiv = document.createElement('div');
+            singleDiv.className = 'dip-single';
+            
+            const btn = document.createElement('div');
+            btn.className = 'dip-btn data';
+            if (dipSwitches[15-i] === 1) btn.classList.add('active'); 
+            btn.id = 'dip-' + i;
+            
+            btn.onclick = () => {
+                dipSwitches[15-i] = dipSwitches[15-i] ? 0 : 1;
+                btn.classList.toggle('active');
+                updateDipHex();
+            };
+
+            const label = document.createElement('div'); label.className = 'dip-label'; label.innerText = i;
+            singleDiv.appendChild(btn); singleDiv.appendChild(label); nibbleDiv.appendChild(singleDiv);
+        }
+        dipContainer.appendChild(nibbleDiv);
+    }
+
+    function getDipValue() {
+        let val = 0; for(let i=0; i<16; i++) if(dipSwitches[15-i]) val += Math.pow(2, i);
+        return val;
+    }
+
+    function updateDipHex() {
+        document.getElementById('dip-hex-display').innerText = getDipValue().toString(16).toUpperCase().padStart(4, '0');
+        resolvePhysics(); 
+    }
+
+    // 初始化 LED
+    const dLedGrid = document.getElementById('data-led-grid');
+    for(let i=15; i>=0; i--) {
+        dLedGrid.innerHTML += `<div class="led-box"><div class="led green" id="d-led-${i}"></div><div class="led-label">D${i}</div></div>`;
+    }
+    const aLedGrid = document.getElementById('addr-led-grid');
+    for(let i=7; i>=0; i--) {
+        aLedGrid.innerHTML += `<div class="led-box"><div class="led yellow" id="a-led-${i}"></div><div class="led-label">A${i}</div></div>`;
+    }
+
+    function updateSwitchUI() {
+        const cg = document.getElementById('cg-switch');
+        cg.className = cg.value === '1' ? 'toggle-switch sw-red' : 'toggle-switch sw-green';
+        
+        const lar = document.getElementById('lar-switch');
+        lar.className = lar.value === '0' ? 'toggle-switch sw-gray' : 'toggle-switch sw-blue';
+
+        const ce = document.getElementById('ce-switch');
+        ce.className = ce.value === '1' ? 'toggle-switch sw-red' : 'toggle-switch sw-green';
+
+        const we = document.getElementById('we-switch');
+        we.className = we.value === '0' ? 'toggle-switch sw-blue' : 'toggle-switch sw-purple';
+    }
+
+    // 核心物理引擎：解析总线竞争与流向
+    function resolvePhysics() {
+        updateSwitchUI();
+        const cg = document.getElementById('cg-switch').value;
+        const ce = document.getElementById('ce-switch').value;
+        const we = document.getElementById('we-switch').value;
+
+        // 冲突检测：C-G开门(0) 且 CE开门(0) 且 WE读模式(0) -> 拨码和RAM同时抢占马路！
+        if (cg === '0' && ce === '0' && we === '0') {
+            busState.mode = 'CONFLICT';
+        } else if (cg === '0') {
+            // 输入门打开，总线上是拨码的数据
+            busState.mode = 'INPUT';
+            busState.val = getDipValue();
+        } else if (ce === '0' && we === '0') {
+            // RAM 读模式，总线上是 RAM 吐出的数据
+            busState.mode = 'RAM_READ';
+            busState.val = RAM[AR];
+        } else {
+            // 高阻态
+            busState.mode = 'HZ';
+            busState.val = 0;
+        }
+        renderScene();
+    }
+
+    // T3 脉冲触发 (时钟上升沿)
+    document.getElementById('pulseBtn').addEventListener('click', () => {
+        if (busState.mode === 'CONFLICT') return; // 冲突时锁死
+        
+        const lar = document.getElementById('lar-switch').value;
+        const ce = document.getElementById('ce-switch').value;
+        const we = document.getElementById('we-switch').value;
+
+        // 1. 地址寄存器 (LAR=1 时，抓取总线低8位)
+        if (lar === '1') {
+            let currentBus = (busState.mode === 'HZ') ? 0 : busState.val;
+            AR = currentBus & 0xFF; 
+        }
+
+        // 2. RAM 写入 (CE=0 且 WE=1 时，脉冲将总线数据写入)
+        if (ce === '0' && we === '1') {
+            let currentBus = (busState.mode === 'HZ') ? 0 : busState.val;
+            RAM[AR] = currentBus;
+        }
+
+        resolvePhysics(); // 刷新状态
+    });
+
+    function renderScene() {
+        // 渲染数据总线
+        const warning = document.getElementById('conflict-warning');
+        const hexDisplay = document.getElementById('dataHex');
+        let val = busState.val;
+
+        for (let i = 0; i < 16; i++) {
+            const led = document.getElementById('d-led-' + i);
+            led.className = 'led green'; 
+            if (busState.mode === 'CONFLICT') led.classList.add('conflict');
+            else if (busState.mode === 'HZ') led.className = 'led hz';
+            else if ((val >> i) & 1) led.classList.add('on');
+        }
+
+        if (busState.mode === 'CONFLICT') {
+            warning.style.display = 'block'; hexDisplay.innerText = "ERROR";
+        } else {
+            warning.style.display = 'none';
+            if (busState.mode === 'HZ') hexDisplay.innerText = "----";
+            else hexDisplay.innerText = val.toString(16).toUpperCase().padStart(4, '0') + " H";
+        }
+
+        // 渲染地址总线 (黄灯)
+        for (let i = 0; i < 8; i++) {
+            const led = document.getElementById('a-led-' + i);
+            if ((AR >> i) & 1) led.className = 'led yellow on';
+            else led.className = 'led yellow';
+        }
+        document.getElementById('addrHex').innerText = AR.toString(16).toUpperCase().padStart(2, '0') + " H";
+
+        // 渲染侧边栏 RAM 监控
+        const list = document.getElementById('ram-list');
+        list.innerHTML = '';
+        for(let i=0; i<256; i++) {
+            if(RAM[i] !== 0 || i === AR) { // 只显示有数据的或当前指向的
+                const hAddr = i.toString(16).toUpperCase().padStart(2, '0');
+                const hData = RAM[i].toString(16).toUpperCase().padStart(4, '0');
+                const active = (i === AR) ? 'active' : '';
+                list.innerHTML += `<div class="ram-row ${active}"><span class="r-addr">[${hAddr}]</span><span class="r-data">${hData}</span></div>`;
+            }
+        }
+    }
+
+    // 绑定事件
+    ['cg-switch', 'lar-switch', 'ce-switch', 'we-switch'].forEach(id => {
+        document.getElementById(id).addEventListener('change', resolvePhysics);
+    });
+
+    // 初始化
+    updateDipHex();
+</script>
+
+</body>
+</html>
