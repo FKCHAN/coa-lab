@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实验二：移位寄存器键盘控制模拟器</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            background: #34495e;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            max-width: 600px;
+            width: 100%;
+            border: 2px solid #2c3e50;
+        }
+        h2 { margin-top: 0; color: #f1c40f; text-align: center; border-bottom: 2px solid #7f8c8d; padding-bottom: 15px;}
+        
+        /* 数码管屏幕 */
+        .screen-bezel {
+            background: #111;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            border: 4px solid #222;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.8);
+        }
+        .digital-screen {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 32px;
+            font-weight: bold;
+            color: #ff3d00;
+            text-align: center;
+            text-shadow: 0 0 10px #ff3d00;
+            letter-spacing: 2px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* 键盘区 */
+        .keypad {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .key {
+            background: #ecf0f1;
+            color: #2c3e50;
+            border: none;
+            border-radius: 6px;
+            padding: 15px 0;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #bdc3c7;
+            transition: all 0.1s;
+        }
+        .key:active { transform: translateY(5px); box-shadow: 0 0 0 #bdc3c7; }
+        .key.func { background: #e74c3c; color: #fff; box-shadow: 0 5px 0 #c0392b; font-size: 16px;}
+        .key.func.orange { background: #e67e22; box-shadow: 0 5px 0 #d35400; }
+        .key.confirm { background: #2ecc71; color: #fff; box-shadow: 0 5px 0 #27ae60;}
+        
+        /* 脉冲控制区 (新加) */
+        .pulse-area {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding-top: 15px;
+            border-top: 2px dashed #7f8c8d;
+        }
+        .pulse-btn {
+            background: #3498db; color: #fff; border: none; border-radius: 6px;
+            padding: 15px 0; font-size: 18px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 5px 0 #2980b9; transition: all 0.1s;
+        }
+        .pulse-btn:active { transform: translateY(5px); box-shadow: 0 0 0 #2980b9; }
+        .pulse-btn.run { background: #9b59b6; box-shadow: 0 5px 0 #8e44ad; }
+        .pulse-btn.run.active { background: #8e44ad; box-shadow: 0 0 0 #8e44ad; transform: translateY(5px); }
+
+        /* 底板 LED 灯 */
+        .led-panel {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #000;
+        }
+        .led-title { color: #2ecc71; margin-bottom: 15px; font-size: 14px; display: flex; justify-content: space-between; padding: 0 10px;}
+        
+        .led-layout { display: flex; align-items: center; justify-content: center; gap: 20px; }
+        .led-grid { display: flex; justify-content: center; gap: 5px; }
+        .led {
+            width: 18px; height: 18px; border-radius: 50%;
+            background: #333; box-shadow: inset 0 2px 4px rgba(0,0,0,0.8);
+            border: 1px solid #000;
+        }
+        .led.on { background: #2ecc71; box-shadow: 0 0 12px #2ecc71; }
+        .led.hz { background: #222; opacity: 0.3; }
+        
+        .z-container { padding: 5px 10px; border: 1px dashed #f1c40f; border-radius: 6px; background: #222;}
+        .z-led { background: #333; }
+        .z-led.on { background: #f1c40f; box-shadow: 0 0 12px #f1c40f; }
+
+        .hint { margin-top: 20px; font-size: 12px; color: #95a5a6; text-align: left; line-height: 1.6; background: #2c3e50; padding: 10px; border-radius: 6px;}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>⌨️ 实验二：移位寄存器键盘控制模拟器</h2>
+    
+    <div class="screen-bezel">
+        <div class="digital-screen" id="screen">CLASS SELECT</div>
+    </div>
+
+    <div class="keypad">
+        <button class="key" onclick="pressKey('C')">C</button>
+        <button class="key" onclick="pressKey('D')">D</button>
+        <button class="key" onclick="pressKey('E')">E</button>
+        <button class="key" onclick="pressKey('F')">F</button>
+        
+        <button class="key" onclick="pressKey('8')">8</button>
+        <button class="key" onclick="pressKey('9')">9</button>
+        <button class="key" onclick="pressKey('A')">A</button>
+        <button class="key" onclick="pressKey('B')">B</button>
+        
+        <button class="key" onclick="pressKey('4')">4</button>
+        <button class="key" onclick="pressKey('5')">5</button>
+        <button class="key" onclick="pressKey('6')">6</button>
+        <button class="key" onclick="pressKey('7')">7</button>
+        
+        <button class="key" onclick="pressKey('0')">0</button>
+        <button class="key" onclick="pressKey('1')">1</button>
+        <button class="key" onclick="pressKey('2')">2</button>
+        <button class="key" onclick="pressKey('3')">3</button>
+        
+        <button class="key func" onclick="pressFunc('RST')">复位(CLR)</button>
+        <button class="key func orange" onclick="pressFunc('SEL')">实验选择</button>
+        <button class="key func" onclick="pressFunc('CANCEL')">取消</button>
+        <button class="key confirm" onclick="pressFunc('ENTER')">确认</button>
+    </div>
+
+    <div class="pulse-area">
+        <button class="pulse-btn" onclick="triggerPulse()">⚡ 单步 (Pulse)</button>
+        <button class="pulse-btn run" id="run-btn" onclick="toggleRun()">🔄 全速 (Run)</button>
+    </div>
+
+    <div class="led-panel">
+        <div class="led-title">
+            <span>数据总线 (G_299为1时高阻熄灭)</span>
+            <span style="color:#f1c40f;">Z 进位</span>
+        </div>
+        <div class="led-layout">
+            <div class="led-grid" id="led-grid"></div>
+            <div class="z-container">
+                <div class="led z-led" id="led-z"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="hint">
+        <strong>💡 完美通关口诀 (完全依照指导书)：</strong><br>
+        1. 【实验选择】-> 输入 <code>02</code> -> 【确认】-> 进入 <code>ES02</code><br>
+        2. <strong>装货：</strong>【确认】-> <code>E1E0</code>填 <code>11</code>(关门) -> <code>Lo</code>填 <code>0</code> -> <code>S0S1</code>填 <code>11</code>(置数) -> <code>DATA</code>填 <code>0001</code> -> 见 <code>PULSE</code> 按【单步】装入！<br>
+        3. <strong>移位：</strong> 见 <code>PULSE</code> 按【确认】回 <code>ES02</code> -> 【确认】-> <code>E1E0</code>填 <code>00</code>(开门) -> <code>Lo</code>填 <code>0</code> -> <code>S0S1</code>填 <code>01</code>(右移) -> 见 <code>PULSE</code> 狂按【单步】看灯！
+    </div>
+</div>
+
+<script>
+    // 状态机常量
+    const STATES = {
+        BOOT: 'CLASS SELECT',
+        ES_WAIT: 'ES--',
+        ES02: 'ES02',
+        E1E0: 'E1E0--',
+        LO: 'Lo=0',
+        S0S1: 'S0S1--',
+        DATA: 'DATA',
+        PULSE: 'PULSE',
+        RUN: 'Run'
+    };
+
+    let currentState = 'BOOT';
+    let inputBuffer = '';
+    
+    // 底层物理寄存器与状态
+    let e1e0 = '00'; // 11=关闭输出(总线灭), 00=允许输出
+    let lo = '0';    // M控制：0=无进位, 1=带进位
+    let s0s1 = '00'; // 11=置数, 01=右移, 10=左移
+    let registerData = 0; // 移位寄存器内部数据 (16位)
+    let zFlag = 0;        // Z 进位灯
+    let runInterval = null;
+
+    const screenEl = document.getElementById('screen');
+    const ledGrid = document.getElementById('led-grid');
+    const ledZ = document.getElementById('led-z');
+    const runBtn = document.getElementById('run-btn');
+
+    // 初始化 16 个总线绿灯
+    for (let i = 15; i >= 0; i--) {
+        const led = document.createElement('div');
+        led.className = 'led';
+        led.id = 'led-' + i;
+        ledGrid.appendChild(led);
+    }
+
+    function updateScreen(text) { screenEl.innerText = text; }
+
+    // 更新 LED 显示 (完全遵循 E1E0 物理门禁规则)
+    function renderLEDs() {
+        // 如果 E1E0 = 11，输出门关闭，总线高阻态（灯灭）
+        const isHighZ = (e1e0 === '11');
+        
+        for (let i = 0; i < 16; i++) {
+            const led = document.getElementById('led-' + i);
+            if (isHighZ) {
+                led.className = 'led hz'; // 高阻态，微弱显示
+            } else {
+                led.className = 'led';
+                if ((registerData >> i) & 1) led.classList.add('on');
+            }
+        }
+        // Z灯独立于总线输出门，始终显示
+        if (zFlag === 1) ledZ.classList.add('on');
+        else ledZ.classList.remove('on');
+    }
+
+    // 处理键盘输入
+    function pressKey(char) {
+        if (currentState === 'ES_WAIT' && inputBuffer.length < 2) {
+            inputBuffer += char;
+            updateScreen('ES--' + inputBuffer.padEnd(2, '_'));
+        } 
+        else if (currentState === 'E1E0' && inputBuffer.length < 2) {
+            if (char === '0' || char === '1') {
+                inputBuffer += char;
+                updateScreen('E1E0 ' + inputBuffer);
+            }
+        }
+        else if (currentState === 'LO' && (char === '0' || char === '1')) {
+            inputBuffer = char;
+            updateScreen('Lo=' + char);
+        }
+        else if (currentState === 'S0S1' && inputBuffer.length < 2) {
+            if (char === '0' || char === '1') {
+                inputBuffer += char;
+                updateScreen('S0S1 ' + inputBuffer);
+            }
+        }
+        else if (currentState === 'DATA' && inputBuffer.length < 4) {
+            inputBuffer += char;
+            updateScreen('D ' + inputBuffer);
+        }
+    }
+
+    // 状态机流转逻辑
+    function pressFunc(func) {
+        if (func === 'RST') {
+            currentState = 'BOOT'; inputBuffer = '';
+            registerData = 0; zFlag = 0; e1e0 = '00';
+            stopRun(); renderLEDs(); updateScreen(STATES.BOOT); return;
+        }
+        if (func === 'CANCEL') {
+            if (currentState !== 'BOOT') {
+                currentState = 'BOOT'; inputBuffer = ''; stopRun();
+                updateScreen(STATES.BOOT);
+            }
+            return;
+        }
+        if (func === 'SEL' && currentState === 'BOOT') {
+            currentState = 'ES_WAIT'; inputBuffer = ''; updateScreen('ES--__'); return;
+        }
+        if (func === 'ENTER') {
+            switch(currentState) {
+                case 'ES_WAIT':
+                    if (inputBuffer === '02' || inputBuffer === '2') {
+                        currentState = 'ES02'; updateScreen(STATES.ES02);
+                    }
+                    break;
+                case 'ES02':
+                    currentState = 'E1E0'; inputBuffer = ''; updateScreen(STATES.E1E0); break;
+                case 'E1E0':
+                    if (inputBuffer.length > 0) e1e0 = inputBuffer;
+                    else e1e0 = '00'; // 默认
+                    renderLEDs(); // 可能关门了
+                    currentState = 'LO'; inputBuffer = ''; updateScreen(STATES.LO); break;
+                case 'LO':
+                    lo = inputBuffer === '1' ? '1' : '0';
+                    currentState = 'S0S1'; inputBuffer = ''; updateScreen(STATES.S0S1); break;
+                case 'S0S1':
+                    s0s1 = inputBuffer.padEnd(2, '0');
+                    if (s0s1 === '11') { // 11是置数，需要输入数据
+                        currentState = 'DATA'; inputBuffer = ''; updateScreen(STATES.DATA);
+                    } else { // 01右移, 10左移, 直接进入脉冲等待
+                        currentState = 'PULSE'; updateScreen(STATES.PULSE);
+                    }
+                    break;
+                case 'DATA':
+                    if (inputBuffer.length > 0) {
+                        currentState = 'PULSE'; updateScreen(STATES.PULSE);
+                    }
+                    break;
+                case 'PULSE':
+                case 'RUN':
+                    stopRun();
+                    // 在脉冲状态按下确认，返回 ES02 准备下一轮操作
+                    currentState = 'ES02'; updateScreen(STATES.ES02);
+                    break;
+            }
+        }
+    }
+
+    // 核心移位物理引擎 (响应单步脉冲)
+    function triggerPulse() {
+        if (currentState !== 'PULSE' && currentState !== 'RUN') return;
+        
+        if (s0s1 === '11') { 
+            // 置数 (Load)
+            registerData = parseInt(inputBuffer, 16) || 0;
+            // 指导书表2-2：M=0进位清零，M=1进位保留(置数)。简化处理。
+            if (lo === '0') zFlag = 0;
+            
+        } else if (s0s1 === '01') { 
+            // 循环右移 (键盘输入01 = S0为0, S1为1)
+            let bit0 = registerData & 1;
+            registerData = registerData >>> 1;
+            if (lo === '0') {
+                registerData = registerData | (bit0 << 15); // 内循环
+            } else {
+                registerData = registerData | (zFlag << 15); // 大循环带Z
+                zFlag = bit0;
+            }
+            
+        } else if (s0s1 === '10') { 
+            // 循环左移 (键盘输入10 = S0为1, S1为0)
+            let bit15 = (registerData >>> 15) & 1;
+            registerData = (registerData << 1) & 0xFFFF;
+            if (lo === '0') {
+                registerData = registerData | bit15; // 内循环
+            } else {
+                registerData = registerData | zFlag; // 大循环带Z
+                zFlag = bit15;
+            }
+        }
+        // s0s1 === '00' 保持不变
+        
+        renderLEDs();
+    }
+
+    // 全速运行逻辑
+    function toggleRun() {
+        if (currentState !== 'PULSE' && currentState !== 'RUN') return;
+        
+        if (runInterval) {
+            stopRun();
+            currentState = 'PULSE'; updateScreen(STATES.PULSE);
+        } else {
+            currentState = 'RUN'; updateScreen(STATES.RUN);
+            runBtn.classList.add('active');
+            runInterval = setInterval(triggerPulse, 300); // 每300ms触发一次脉冲
+        }
+    }
+    
+    function stopRun() {
+        if (runInterval) {
+            clearInterval(runInterval);
+            runInterval = null;
+            runBtn.classList.remove('active');
+        }
+    }
+</script>
+
+</body>
+</html>
