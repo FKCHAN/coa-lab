@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>单片机键盘控制模拟器 (实验一)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            background: #34495e;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            max-width: 600px;
+            width: 100%;
+            border: 2px solid #2c3e50;
+        }
+        h2 { margin-top: 0; color: #f1c40f; text-align: center; border-bottom: 2px solid #7f8c8d; padding-bottom: 15px;}
+        
+        /* 数码管屏幕 */
+        .screen-bezel {
+            background: #111;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            border: 4px solid #222;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.8);
+        }
+        .digital-screen {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 32px;
+            font-weight: bold;
+            color: #ff3d00;
+            text-align: center;
+            text-shadow: 0 0 10px #ff3d00;
+            letter-spacing: 2px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* 键盘区 */
+        .keypad {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 25px;
+        }
+        .key {
+            background: #ecf0f1;
+            color: #2c3e50;
+            border: none;
+            border-radius: 6px;
+            padding: 15px 0;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #bdc3c7;
+            transition: all 0.1s;
+        }
+        .key:active {
+            transform: translateY(5px);
+            box-shadow: 0 0 0 #bdc3c7;
+        }
+        .key.func { background: #e74c3c; color: #fff; box-shadow: 0 5px 0 #c0392b; font-size: 16px;}
+        .key.func:active { box-shadow: 0 0 0 #c0392b; }
+        .key.confirm { background: #2ecc71; color: #fff; box-shadow: 0 5px 0 #27ae60;}
+        .key.confirm:active { box-shadow: 0 0 0 #27ae60; }
+
+        /* 底板 LED 灯 */
+        .led-panel {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #000;
+        }
+        .led-title { color: #2ecc71; margin-bottom: 15px; font-size: 14px; }
+        .led-grid {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+        }
+        .led {
+            width: 18px; height: 18px; border-radius: 50%;
+            background: #333; box-shadow: inset 0 2px 4px rgba(0,0,0,0.8);
+            border: 1px solid #000;
+        }
+        .led.on { background: #2ecc71; box-shadow: 0 0 12px #2ecc71; }
+        .hint { margin-top: 20px; font-size: 13px; color: #95a5a6; text-align: center; line-height: 1.6;}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>⌨️ 实验一：单片机键盘控制模拟器</h2>
+    
+    <div class="screen-bezel">
+        <div class="digital-screen" id="screen">CLASS SELECT</div>
+    </div>
+
+    <div class="keypad">
+        <button class="key" onclick="pressKey('C')">C</button>
+        <button class="key" onclick="pressKey('D')">D</button>
+        <button class="key" onclick="pressKey('E')">E</button>
+        <button class="key" onclick="pressKey('F')">F</button>
+        <button class="key" onclick="pressKey('8')">8</button>
+        <button class="key" onclick="pressKey('9')">9</button>
+        <button class="key" onclick="pressKey('A')">A</button>
+        <button class="key" onclick="pressKey('B')">B</button>
+        <button class="key" onclick="pressKey('4')">4</button>
+        <button class="key" onclick="pressKey('5')">5</button>
+        <button class="key" onclick="pressKey('6')">6</button>
+        <button class="key" onclick="pressKey('7')">7</button>
+        <button class="key" onclick="pressKey('0')">0</button>
+        <button class="key" onclick="pressKey('1')">1</button>
+        <button class="key" onclick="pressKey('2')">2</button>
+        <button class="key" onclick="pressKey('3')">3</button>
+        <button class="key func" onclick="pressFunc('RST')">复位(CLR)</button>
+        <button class="key func" onclick="pressFunc('SEL')">实验选择</button>
+        <button class="key func" onclick="pressFunc('CANCEL')">取消</button>
+        <button class="key confirm" onclick="pressFunc('ENTER')">确认</button>
+    </div>
+
+    <div class="led-panel">
+        <div class="led-title">数据总线指示灯 (ALU 运算结果)</div>
+        <div class="led-grid" id="led-grid"></div>
+    </div>
+
+    <div class="hint">
+        <strong>💡 通关流程提示：</strong><br>
+        1. 按【实验选择】-> 输入 `01` -> 【确认】-> 【确认】<br>
+        2. InSt (输入指令如 09 加法) -> Lo (M设置) -> Cn (进位设置)<br>
+        3. DATA (输入A，如1234) -> DATA (输入B，如5678) -> FINISH (看灯!)
+    </div>
+</div>
+
+<script>
+    // 核心状态机设计
+    const STATES = {
+        BOOT: 'CLASS SELECT',
+        ES_WAIT: 'ES--',
+        ES01: 'ES01',
+        INST: 'InSt--',
+        M_SELECT: 'Lo=0',
+        CN_SELECT: 'Cn=0',
+        DATA1: 'DATA',
+        DATA2: 'DATA',
+        FINISH: 'FINISH'
+    };
+
+    let currentState = 'BOOT';
+    let inputBuffer = '';
+    
+    // 存储用户的配置
+    let aluConfig = { S: 0, M: 0, Cn: 0 };
+    let regA = 0;
+    let regB = 0;
+    let finalResult = 0;
+
+    const screenEl = document.getElementById('screen');
+    const ledGrid = document.getElementById('led-grid');
+
+    // 初始化 16 个绿灯
+    for (let i = 15; i >= 0; i--) {
+        const led = document.createElement('div');
+        led.className = 'led';
+        led.id = 'led-' + i;
+        ledGrid.appendChild(led);
+    }
+
+    function updateScreen(text) {
+        screenEl.innerText = text;
+    }
+
+    function renderLEDs(value) {
+        for (let i = 0; i < 16; i++) {
+            const led = document.getElementById('led-' + i);
+            if ((value >> i) & 1) led.classList.add('on');
+            else led.classList.remove('on');
+        }
+    }
+
+    function clearLEDs() {
+        for (let i = 0; i < 16; i++) {
+            document.getElementById('led-' + i).classList.remove('on');
+        }
+    }
+
+    // 核心 ALU 计算逻辑
+    function computeALU() {
+        let A = regA & 0xFFFF;
+        let B = regB & 0xFFFF;
+        let invB = (~B) & 0xFFFF;
+        let F = 0;
+
+        if (aluConfig.M === 1) { // 逻辑
+            switch(aluConfig.S) {
+                case 0: F = (~A); break;
+                case 1: F = ~(A | B); break;
+                case 2: F = (~A) & B; break;
+                case 3: F = 0; break;
+                case 4: F = ~(A & B); break;
+                case 5: F = ~B; break;
+                case 6: F = A ^ B; break;
+                case 7: F = A & invB; break;
+                case 8: F = (~A) | B; break;
+                case 9: F = ~(A ^ B); break;
+                case 10: F = B; break;
+                case 11: F = A & B; break;
+                case 12: F = 0xFFFF; break;
+                case 13: F = A | invB; break;
+                case 14: F = A | B; break;
+                case 15: F = A; break;
+            }
+        } else { // 算术
+            let res = 0;
+            switch(aluConfig.S) {
+                case 0: res = A; break;
+                case 1: res = A | B; break;
+                case 2: res = A | invB; break;
+                case 3: res = 0xFFFF; break;
+                case 4: res = A + (A & invB); break;
+                case 5: res = (A | B) + (A & invB); break;
+                case 6: res = A + invB; break;
+                case 7: res = (A & invB) + 0xFFFF; break;
+                case 8: res = A + (A & B); break;
+                case 9: res = A + B; break;
+                case 10: res = (A | invB) + (A & B); break;
+                case 11: res = (A & B) + 0xFFFF; break;
+                case 12: res = A + A; break;
+                case 13: res = (A | B) + A; break;
+                case 14: res = (A | invB) + A; break;
+                case 15: res = A + 0xFFFF; break;
+            }
+            let carryIn = (aluConfig.Cn === 0) ? 1 : 0;
+            F = res + carryIn;
+        }
+        return F & 0xFFFF;
+    }
+
+    // 处理数字/字母按键
+    function pressKey(char) {
+        if (currentState === 'ES_WAIT' && inputBuffer.length < 2) {
+            inputBuffer += char;
+            updateScreen('ES--' + inputBuffer.padEnd(2, '_'));
+        } 
+        else if (currentState === 'INST' && inputBuffer.length < 2) {
+            inputBuffer += char;
+            updateScreen('InSt ' + inputBuffer);
+        }
+        else if (currentState === 'M_SELECT' && (char === '0' || char === '1')) {
+            inputBuffer = char;
+            updateScreen('Lo=' + char);
+        }
+        else if (currentState === 'CN_SELECT' && (char === '0' || char === '1')) {
+            inputBuffer = char;
+            updateScreen('Cn=' + char);
+        }
+        else if ((currentState === 'DATA1' || currentState === 'DATA2') && inputBuffer.length < 4) {
+            inputBuffer += char;
+            updateScreen('D ' + inputBuffer);
+        }
+    }
+
+    // 处理功能键
+    function pressFunc(func) {
+        if (func === 'RST') {
+            currentState = 'BOOT';
+            inputBuffer = '';
+            clearLEDs();
+            updateScreen(STATES.BOOT);
+            return;
+        }
+
+        if (func === 'CANCEL') {
+            // 简单的后退逻辑
+            if (currentState !== 'BOOT') {
+                currentState = 'BOOT';
+                inputBuffer = '';
+                clearLEDs();
+                updateScreen(STATES.BOOT);
+            }
+            return;
+        }
+
+        if (func === 'SEL' && currentState === 'BOOT') {
+            currentState = 'ES_WAIT';
+            inputBuffer = '';
+            updateScreen('ES--__');
+            return;
+        }
+
+        if (func === 'ENTER') {
+            switch(currentState) {
+                case 'ES_WAIT':
+                    if (inputBuffer === '01' || inputBuffer === '1') {
+                        currentState = 'ES01';
+                        updateScreen(STATES.ES01);
+                    }
+                    break;
+                case 'ES01':
+                    currentState = 'INST';
+                    inputBuffer = '';
+                    updateScreen(STATES.INST);
+                    clearLEDs();
+                    break;
+                case 'INST':
+                    if (inputBuffer.length > 0) {
+                        aluConfig.S = parseInt(inputBuffer, 16);
+                        currentState = 'M_SELECT';
+                        inputBuffer = '';
+                        updateScreen(STATES.M_SELECT);
+                    }
+                    break;
+                case 'M_SELECT':
+                    aluConfig.M = inputBuffer === '1' ? 1 : 0;
+                    currentState = 'CN_SELECT';
+                    inputBuffer = '';
+                    updateScreen(STATES.CN_SELECT);
+                    break;
+                case 'CN_SELECT':
+                    aluConfig.Cn = inputBuffer === '1' ? 1 : 0;
+                    currentState = 'DATA1';
+                    inputBuffer = '';
+                    updateScreen(STATES.DATA1);
+                    break;
+                case 'DATA1':
+                    if (inputBuffer.length > 0) {
+                        regA = parseInt(inputBuffer, 16);
+                        currentState = 'DATA2';
+                        inputBuffer = '';
+                        updateScreen(STATES.DATA2);
+                    }
+                    break;
+                case 'DATA2':
+                    if (inputBuffer.length > 0) {
+                        regB = parseInt(inputBuffer, 16);
+                        finalResult = computeALU();
+                        currentState = 'FINISH';
+                        updateScreen(STATES.FINISH);
+                        renderLEDs(finalResult);
+                    }
+                    break;
+                case 'FINISH':
+                    // 循环做下一次运算
+                    currentState = 'ES01';
+                    updateScreen(STATES.ES01);
+                    break;
+            }
+        }
+    }
+</script>
+
+</body>
+</html>
