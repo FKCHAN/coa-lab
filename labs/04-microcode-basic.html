@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>实验四：微程序控制器读写模拟器</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1a1a2e; color: #e0e0e0; margin: 0; padding: 20px; display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
+        .container { background: #16213e; padding: 30px; border-radius: 15px; box-shadow: 0 15px 35px rgba(0,0,0,0.6); max-width: 650px; width: 100%; border: 2px solid #0f3460; }
+        h2 { margin-top: 0; color: #e94560; text-align: center; border-bottom: 2px solid #0f3460; padding-bottom: 15px;}
+        
+        /* K1-K4 物理开关 */
+        .hardware-locks { display: flex; justify-content: space-around; background: #0f3460; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #1a1a2e; }
+        .lock-group { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .switch-btn { width: 40px; height: 55px; background: #333; border: 2px solid #111; border-radius: 4px; cursor: pointer; position: relative; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); }
+        .switch-btn::after { content: ''; position: absolute; width: 100%; height: 50%; background: #ccc; opacity: 0.8; top: 50%; left: 0; transition: top 0.1s; border-radius: 0 0 2px 2px; }
+        .switch-btn.on::after { top: 0; background: #e94560; border-radius: 2px 2px 0 0; }
+        .switch-btn.on { background: #5a1a26; }
+        .lock-label { font-size: 13px; font-weight: bold; color: #a2a8d3; }
+
+        /* 屏幕 */
+        .screen-bezel { background: #111; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 4px solid #0f3460; box-shadow: inset 0 0 15px rgba(0,0,0,0.9); }
+        .digital-screen { font-family: 'Courier New', Courier, monospace; font-size: 32px; font-weight: bold; color: #00ffcc; text-align: center; text-shadow: 0 0 10px #00ffcc; letter-spacing: 2px; height: 40px; display: flex; align-items: center; justify-content: center; }
+
+        /* 键盘 */
+        .keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+        .key { background: #e0e0e0; color: #1a1a2e; border: none; border-radius: 6px; padding: 15px 0; font-size: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 5px 0 #9ea2a2; transition: all 0.1s; }
+        .key:active { transform: translateY(5px); box-shadow: 0 0 0 #9ea2a2; }
+        .key.func { background: #e94560; color: #fff; box-shadow: 0 5px 0 #962c3e; font-size: 15px;}
+        .key.func.orange { background: #f39c12; box-shadow: 0 5px 0 #a86b0a; }
+        .key.confirm { background: #00ffcc; color: #1a1a2e; box-shadow: 0 5px 0 #00997a;}
+        
+        .pulse-btn { background: #3498db; color: #fff; border: none; border-radius: 6px; padding: 15px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 5px 0 #2980b9; transition: all 0.1s; width: 100%; margin-bottom: 20px; }
+        .pulse-btn:active { transform: translateY(5px); box-shadow: 0 0 0 #2980b9; }
+
+        /* LED 面板 */
+        .led-panel { background: #0f3460; padding: 15px; border-radius: 8px; border: 1px solid #1a1a2e; margin-bottom: 10px;}
+        .led-title { color: #00ffcc; margin-bottom: 10px; font-size: 12px; text-align: center; letter-spacing: 1px;}
+        .led-grid { display: flex; justify-content: center; gap: 4px; }
+        .led-group { display: flex; gap: 3px; padding-right: 8px; border-right: 1px solid #1a1a2e; margin-right: 8px;}
+        .led-group:last-child { border-right: none; margin-right: 0; padding-right: 0;}
+        .led { width: 14px; height: 14px; border-radius: 50%; background: #222; box-shadow: inset 0 2px 4px rgba(0,0,0,0.8); border: 1px solid #111; }
+        .led.green.on { background: #00ffcc; box-shadow: 0 0 10px #00ffcc; }
+        .led.yellow.on { background: #f1c40f; box-shadow: 0 0 10px #f1c40f; }
+
+        /* 警告信息 */
+        #hw-warning { display: none; background: #e94560; color: white; padding: 10px; border-radius: 4px; text-align: center; font-weight: bold; font-size: 14px; margin-bottom: 15px; animation: blink 0.5s infinite; }
+        @keyframes blink { 0% {opacity: 1;} 100% {opacity: 0.5;} }
+
+        /* 侧边字典监控 */
+        .rom-monitor { background: #0f3460; padding: 20px; border-radius: 15px; border: 2px solid #1a1a2e; width: 320px; max-height: 800px; overflow-y: auto; color: #a2a8d3; font-family: monospace; font-size: 14px;}
+        .rom-monitor h3 { margin-top: 0; color: #f39c12; text-align: center; border-bottom: 1px solid #1a1a2e; padding-bottom: 10px;}
+        .rom-row { display: flex; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid #16213e; }
+        .rom-row .addr { color: #f1c40f; font-weight: bold; }
+        .rom-row .data { color: #00ffcc; }
+        .rom-row.active { background: #e94560; color: #fff; border-radius: 4px;}
+        .rom-row.active .addr, .rom-row.active .data { color: #fff; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🧠 实验四：微程序控制器 (2816写读)</h2>
+    
+    <div id="hw-warning">⚠️ 硬件锁状态错误！请检查 K1-K4 设置！</div>
+
+    <div class="hardware-locks">
+        <div class="lock-group"><div class="switch-btn" id="sw-k1" onclick="toggleSwitch('K1')"></div><div class="lock-label">K1 (地址锁)</div></div>
+        <div class="lock-group"><div class="switch-btn" id="sw-k2" onclick="toggleSwitch('K2')"></div><div class="lock-label">K2 (写允许)</div></div>
+        <div class="lock-group"><div class="switch-btn" id="sw-k3" onclick="toggleSwitch('K3')"></div><div class="lock-label">K3 (输出允许)</div></div>
+        <div class="lock-group"><div class="switch-btn" id="sw-k4" onclick="toggleSwitch('K4')"></div><div class="lock-label">K4 (系统总控)</div></div>
+    </div>
+    <div style="text-align:center; font-size:12px; color:#a2a8d3; margin-bottom: 15px;">
+        📝 写代码锁：K1=OFF, K2=ON, K3=OFF, K4=OFF <br>
+        📖 读代码锁：K1=OFF, K2=OFF, K3=ON, K4=OFF
+    </div>
+
+    <div class="screen-bezel">
+        <div class="digital-screen" id="screen">CLASS SELECT</div>
+    </div>
+
+    <div class="keypad">
+        <button class="key" onclick="pressKey('C')">C</button>
+        <button class="key" onclick="pressKey('D')">D</button>
+        <button class="key" onclick="pressKey('E')">E</button>
+        <button class="key" onclick="pressKey('F')">F</button>
+        <button class="key" onclick="pressKey('8')">8</button>
+        <button class="key" onclick="pressKey('9')">9</button>
+        <button class="key" onclick="pressKey('A')">A</button>
+        <button class="key" onclick="pressKey('B')">B</button>
+        <button class="key" onclick="pressKey('4')">4</button>
+        <button class="key" onclick="pressKey('5')">5</button>
+        <button class="key" onclick="pressKey('6')">6</button>
+        <button class="key" onclick="pressKey('7')">7</button>
+        <button class="key" onclick="pressKey('0')">0</button>
+        <button class="key" onclick="pressKey('1')">1</button>
+        <button class="key" onclick="pressKey('2')">2</button>
+        <button class="key" onclick="pressKey('3')">3</button>
+        
+        <button class="key func" onclick="pressFunc('RST')">RESET</button>
+        <button class="key func orange" onclick="pressFunc('SEL')">实验选择</button>
+        <button class="key func" onclick="pressFunc('CANCEL')">取消</button>
+        <button class="key confirm" onclick="pressFunc('ENTER')">确认</button>
+    </div>
+
+    <button class="pulse-btn" onclick="triggerPulse()">⚡ 单步发脉冲 (PULSE)</button>
+
+    <div class="led-panel">
+        <div class="led-title">24位 微指令代码 (MS24 —— MS1)</div>
+        <div class="led-grid" id="code-leds"></div>
+    </div>
+    <div class="led-panel" style="width: 50%; margin: 0 auto;">
+        <div class="led-title" style="color: #f1c40f;">6位 微地址 (uA5-uA0)</div>
+        <div class="led-grid" id="addr-leds"></div>
+    </div>
+</div>
+
+<div class="rom-monitor">
+    <h3>📖 2816 控制存储器大字典 (共64页)</h3>
+    <div id="rom-list"></div>
+</div>
+
+<script>
+    // --- 硬件状态 ---
+    let hwLocks = { 'K1': false, 'K2': false, 'K3': false, 'K4': false }; // 默认全关
+    let microRom = new Array(64).fill("000000"); // 64个地址，存24位对应的6位16进制字符串
+    
+    const STATES = {
+        BOOT: 'CLASS SELECT',
+        ES_WAIT: 'ES--',
+        ES04: 'ES04',
+        CTL: 'CtL1=_',
+        ADDR: 'U-Addr',
+        CODE: 'U_CoDE',
+        PULSE: 'PULSE'
+    };
+
+    let currentState = 'BOOT';
+    let inputBuffer = '';
+    let mode = 0; // 1 = 写, 2 = 读
+    let currentAddr = '000000'; // 6位二进制串
+    let currentCode = '000000'; // 6位16进制串
+
+    // --- UI 初始化 ---
+    function toggleSwitch(k) {
+        hwLocks[k] = !hwLocks[k];
+        const btn = document.getElementById('sw-' + k.toLowerCase());
+        if(hwLocks[k]) btn.classList.add('on'); else btn.classList.remove('on');
+        checkHardwareLocks();
+        renderROM(); // 更新监控显示
+    }
+
+    // 初始化 24 个代码灯 (分组显示)
+    const codeLeds = document.getElementById('code-leds');
+    for(let i=5; i>=0; i--) {
+        let groupHTML = '<div class="led-group">';
+        for(let j=3; j>=0; j--) {
+            let index = i*4 + j + 1; // MS24 到 MS1
+            groupHTML += `<div class="led green" id="code-led-${index}"></div>`;
+        }
+        groupHTML += '</div>';
+        codeLeds.innerHTML += groupHTML;
+    }
+    
+    // 初始化 6 个地址灯
+    const addrLeds = document.getElementById('addr-leds');
+    for(let i=5; i>=0; i--) addrLeds.innerHTML += `<div class="led yellow" id="addr-led-${i}"></div>`;
+
+    function updateScreen(text) { document.getElementById('screen').innerText = text; }
+
+    function checkHardwareLocks() {
+        const warn = document.getElementById('hw-warning');
+        if (hwLocks['K4']) { warn.innerText = "⚠️ 错误：单片机控制实验 K4 必须为 OFF！"; warn.style.display = 'block'; return false; }
+        
+        if (mode === 1) { // 写模式检查
+            if (hwLocks['K1'] || !hwLocks['K2'] || hwLocks['K3']) {
+                warn.innerText = "⚠️ 写入微代码前，必须确保：K1=OFF, K2=ON, K3=OFF";
+                warn.style.display = 'block'; return false;
+            }
+        } else if (mode === 2) { // 读模式检查
+            if (hwLocks['K1'] || hwLocks['K2'] || !hwLocks['K3']) {
+                warn.innerText = "⚠️ 读取微代码前，必须确保：K1=OFF, K2=OFF, K3=ON";
+                warn.style.display = 'block'; return false;
+            }
+        }
+        warn.style.display = 'none';
+        return true;
+    }
+
+    function renderLEDs(addrBinStr, codeHexStr) {
+        // 地址灯 (uA5 - uA0)
+        for(let i=0; i<6; i++) {
+            const led = document.getElementById(`addr-led-${5-i}`);
+            if(addrBinStr && addrBinStr.charAt(i) === '1') led.classList.add('on');
+            else led.classList.remove('on');
+        }
+        
+        // 数据灯 (K3=ON 允许输出时才显示数据灯)
+        if (hwLocks['K3'] && codeHexStr) {
+            let binaryStr = parseInt(codeHexStr, 16).toString(2).padStart(24, '0');
+            for(let i=0; i<24; i++) {
+                const led = document.getElementById(`code-led-${24-i}`);
+                if(binaryStr.charAt(i) === '1') led.classList.add('on');
+                else led.classList.remove('on');
+            }
+        } else {
+            for(let i=1; i<=24; i++) document.getElementById(`code-led-${i}`).classList.remove('on');
+        }
+    }
+
+    function renderROM() {
+        const list = document.getElementById('rom-list');
+        list.innerHTML = '';
+        for(let i=0; i<64; i++) {
+            const binAddr = i.toString(2).padStart(6, '0');
+            const data = microRom[i];
+            if (data !== "000000" || binAddr === currentAddr) {
+                const active = (binAddr === currentAddr && (currentState === 'PULSE' || currentState === 'CODE')) ? 'active' : '';
+                list.innerHTML += `<div class="rom-row ${active}"><span class="addr">[${binAddr}]</span><span class="data">${data}</span></div>`;
+            }
+        }
+    }
+
+    // --- 键盘逻辑 ---
+    function pressKey(char) {
+        if(currentState === 'ES_WAIT' && inputBuffer.length < 2) {
+            inputBuffer += char; updateScreen('ES--' + inputBuffer.padEnd(2, '_'));
+        } 
+        else if(currentState === 'CTL' && (char === '1' || char === '2')) {
+            inputBuffer = char; updateScreen('CtL1=' + char);
+        }
+        else if(currentState === 'ADDR' && inputBuffer.length < 6) {
+            if(char === '0' || char === '1') { // 地址只能输0/1
+                inputBuffer += char; updateScreen('Ad ' + inputBuffer);
+            }
+        }
+        else if(currentState === 'CODE' && inputBuffer.length < 6) { // 代码输16进制
+            inputBuffer += char; updateScreen('Cd ' + inputBuffer);
+        }
+    }
+
+    function pressFunc(func) {
+        if(func === 'RST') {
+            currentState = 'BOOT'; inputBuffer = ''; mode = 0; currentAddr = '000000'; currentCode = '000000';
+            renderLEDs('000000', null); renderROM(); updateScreen(STATES.BOOT); return;
+        }
+        if(func === 'CANCEL') {
+            if(currentState !== 'BOOT') { currentState = 'ES04'; inputBuffer = ''; updateScreen(STATES.ES04); }
+            return;
+        }
+        if(func === 'SEL' && currentState === 'BOOT') {
+            currentState = 'ES_WAIT'; inputBuffer = ''; updateScreen('ES--__'); return;
+        }
+        if(func === 'ENTER') {
+            switch(currentState) {
+                case 'ES_WAIT':
+                    if(inputBuffer === '04' || inputBuffer === '4') { currentState = 'ES04'; updateScreen(STATES.ES04); }
+                    break;
+                case 'ES04':
+                    currentState = 'CTL'; inputBuffer = ''; updateScreen(STATES.CTL); break;
+                case 'CTL':
+                    if(inputBuffer !== '') {
+                        mode = parseInt(inputBuffer); 
+                        if (!checkHardwareLocks()) return; // 检查锁
+                        currentState = 'ADDR'; inputBuffer = ''; updateScreen(STATES.ADDR);
+                    }
+                    break;
+                case 'ADDR':
+                    if(inputBuffer.length > 0) {
+                        currentAddr = inputBuffer.padStart(6, '0');
+                        renderLEDs(currentAddr, null);
+                        if(mode === 1) { // 写模式
+                            currentState = 'CODE'; inputBuffer = ''; updateScreen(STATES.CODE);
+                        } else { // 读模式
+                            currentState = 'PULSE'; updateScreen(STATES.PULSE);
+                        }
+                        renderROM();
+                    }
+                    break;
+                case 'CODE':
+                    if(inputBuffer.length > 0) {
+                        currentCode = inputBuffer.padStart(6, '0');
+                        currentState = 'PULSE'; updateScreen(STATES.PULSE);
+                    }
+                    break;
+            }
+        }
+    }
+
+    // --- 脉冲与读写执行 ---
+    function triggerPulse() {
+        if(currentState !== 'PULSE') return;
+        if(!checkHardwareLocks()) return; // 执行时最终检查硬件锁
+
+        let index = parseInt(currentAddr, 2);
+        
+        if(mode === 1) { // 写微代码
+            microRom[index] = currentCode;
+        } else { // 读微代码
+            currentCode = microRom[index];
+        }
+        
+        renderLEDs(currentAddr, currentCode); // 点亮对应的灯
+        renderROM(); // 更新监控
+
+        // 按指导书逻辑，写完/读完一条后，回到输入地址状态准备下一条
+        currentState = 'ADDR'; 
+        inputBuffer = ''; 
+        updateScreen(STATES.ADDR);
+    }
+    
+    renderROM();
+</script>
+
+</body>
+</html>
