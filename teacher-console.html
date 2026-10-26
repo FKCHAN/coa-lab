@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>教师控制台 · 计算机组成原理实验舱</title>
+<style>
+:root{
+  --bg:#04070c;--panel:rgba(9,17,26,.82);--line:rgba(120,200,240,.14);--line-s:rgba(58,217,255,.45);
+  --cyan:#3ad9ff;--amber:#ffb64d;--green:#3ef0a6;--red:#ff5c72;--text:#d8e9f5;--muted:#7d94a8;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6}
+.bg{position:fixed;inset:0;pointer-events:none;
+  background:radial-gradient(700px 400px at 20% 0%,rgba(58,217,255,.10),transparent 70%),
+             radial-gradient(800px 500px at 85% 15%,rgba(255,182,77,.06),transparent 72%),
+             radial-gradient(900px 600px at 50% 110%,rgba(58,217,255,.06),transparent 70%);}
+.bg::after{content:"";position:absolute;inset:0;
+  background-image:linear-gradient(rgba(58,217,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(58,217,255,.045) 1px,transparent 1px);
+  background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 40%,#000 30%,transparent 85%);
+  -webkit-mask-image:radial-gradient(ellipse at 50% 40%,#000 30%,transparent 85%);opacity:.5}
+header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:16px;height:60px;padding:0 22px;
+  background:linear-gradient(180deg,rgba(4,8,14,.96),rgba(4,8,14,.7));border-bottom:1px solid var(--line);backdrop-filter:blur(12px)}
+.logo{width:30px;height:30px}
+.title{font-size:15px;font-weight:600;letter-spacing:.4px}
+.title small{display:block;font:400 9px/1.5 var(--mono);color:#0e7d9e;letter-spacing:2px}
+.spacer{flex:1}
+.tabs{display:flex;gap:4px}
+.tab{padding:7px 14px;border-radius:5px;border:1px solid transparent;color:var(--muted);font-size:12.5px;cursor:pointer;transition:.2s;background:transparent;font-family:inherit}
+.tab:hover{color:var(--text);background:rgba(58,217,255,.06)}
+.tab.on{color:#06121a;background:linear-gradient(180deg,#68e4ff,#22b9e0);border-color:#8ff0ff;font-weight:600;box-shadow:0 0 14px rgba(58,217,255,.4)}
+main{padding:22px;max-width:1500px;margin:0 auto;position:relative;z-index:5}
+.panel{border:1px solid var(--line);border-radius:9px;background:linear-gradient(180deg,rgba(11,21,31,.9),rgba(6,11,18,.92));
+  box-shadow:0 16px 40px -30px #000;overflow:hidden;margin-bottom:16px}
+.ph{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid rgba(120,200,240,.1);
+  background:linear-gradient(180deg,rgba(58,217,255,.06),transparent)}
+.ph h2{font-size:13px;font-weight:600;letter-spacing:.7px}
+.ph em{font:400 9px/1 var(--mono);color:#5f788a;font-style:normal;letter-spacing:1.2px;text-transform:uppercase}
+.ph .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.pb{padding:16px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.stat{padding:12px 14px;border:1px solid var(--line);border-radius:7px;background:rgba(58,217,255,.04);position:relative;overflow:hidden}
+.stat::before{content:"";position:absolute;left:0;top:0;width:2px;height:100%;background:linear-gradient(180deg,var(--cyan),transparent)}
+.stat b{display:block;font:600 24px/1.2 var(--mono);color:#eaf9ff}
+.stat span{font-size:11px;color:var(--muted);letter-spacing:.5px}
+.btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:4px;cursor:pointer;
+  border:1px solid var(--line-s);background:rgba(58,217,255,.08);color:#bfeeff;font:500 11.5px/1 var(--sans);transition:.2s}
+.btn:hover{background:rgba(58,217,255,.18);box-shadow:0 0 14px rgba(58,217,255,.25)}
+.btn.ghost{border-color:var(--line);color:var(--muted);background:transparent}
+.btn.ghost:hover{color:var(--text);border-color:var(--line-s)}
+select,input[type=file]{height:30px;border-radius:4px;border:1px solid var(--line);background:rgba(6,12,19,.9);
+  color:var(--text);padding:0 8px;font-family:inherit;font-size:12px}
+/* heatmap */
+.hm{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cell{border-radius:5px;padding:7px 6px;border:1px solid rgba(120,200,240,.12);position:relative;cursor:default;transition:.18s}
+.cell:hover{transform:translateY(-2px);border-color:var(--line-s);z-index:2;box-shadow:0 8px 20px -10px #000}
+.cell b{display:block;font:600 9px/1 var(--mono);color:rgba(6,18,26,.75);letter-spacing:.4px}
+.cell u{display:block;text-decoration:none;font:600 13px/1.3 var(--mono);color:#04121a}
+.cell small{display:block;font-size:9.5px;color:rgba(6,18,26,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.legend{display:flex;align-items:center;gap:8px;font:400 10px/1 var(--mono);color:var(--muted);margin-top:10px}
+.legend i{width:34px;height:8px;border-radius:2px;display:inline-block}
+/* table */
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:7px 9px;border-bottom:1px solid rgba(120,200,240,.09);text-align:left}
+th{font:600 10.5px/1.3 var(--mono);color:#8fb3c6;letter-spacing:.6px;text-transform:uppercase;border-bottom-color:rgba(120,200,240,.2)}
+td.mono,th.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+tr:hover td{background:rgba(58,217,255,.04)}
+.bar{height:6px;border-radius:3px;background:rgba(120,200,240,.12);overflow:hidden;min-width:60px}
+.bar i{display:block;height:100%;border-radius:3px}
+/* report paper */
+.paper{background:#fff;color:#1a1a1a;border-radius:4px;padding:34px 38px;font-family:"Songti SC",SimSun,serif;line-height:1.85;font-size:13px}
+.paper h1{text-align:center;font-size:19px;font-weight:600;margin-bottom:4px;letter-spacing:1px}
+.paper .sub{text-align:center;font-size:11px;color:#666;margin-bottom:18px}
+.paper h3{font-size:13.5px;font-weight:600;margin:16px 0 6px;border-left:3px solid #0b6c8c;padding-left:8px}
+.paper table{font-size:11.5px;border:1px solid #bbb}
+.paper th{background:#eef4f7;color:#123c4e;border:1px solid #bbb;font-family:inherit;font-size:11px;letter-spacing:0;text-transform:none}
+.paper td{border:1px solid #bbb;color:#222;padding:4px 6px}
+.paper .kv{display:grid;grid-template-columns:repeat(2,1fr);gap:2px 24px;font-size:12px}
+.paper .kv i{font-style:normal;color:#666}
+.paper .note{font-size:11.5px;color:#444;background:#f7fafb;border-left:3px solid #9fc7d6;padding:8px 10px;margin-top:8px}
+.paper .sign{margin-top:22px;font-size:12px;display:flex;justify-content:space-between;color:#333}
+.ok{color:#0a7a52}.no{color:#c0392b}
+/* viva */
+.q{border:1px solid var(--line);border-radius:7px;padding:13px 14px;margin-bottom:11px;background:rgba(58,217,255,.03)}
+.q .qh{display:flex;gap:8px;align-items:baseline;margin-bottom:7px}
+.q .qh b{font:600 11px/1 var(--mono);color:var(--cyan);letter-spacing:.5px}
+.q .qh p{font-size:13.5px;color:#e2f2fb;flex:1}
+.q textarea{width:100%;min-height:64px;border-radius:5px;border:1px solid var(--line);background:rgba(4,10,16,.9);
+  color:var(--text);padding:8px 10px;font-family:inherit;font-size:12.5px;resize:vertical}
+.q .res{margin-top:7px;font-size:11.5px;display:none}
+.q .res.show{display:block}
+.q .hint{font-size:11px;color:var(--muted);margin-top:6px}
+.tag{display:inline-block;padding:2px 6px;border-radius:3px;font:600 9px/1.4 var(--mono);letter-spacing:.4px}
+.tag.g{background:rgba(62,240,166,.14);color:var(--green)}
+.tag.y{background:rgba(255,182,77,.16);color:var(--amber)}
+.tag.r{background:rgba(255,92,114,.14);color:var(--red)}
+.hide{display:none!important}
+.foot{padding:18px 0 10px;text-align:center;font:400 9.5px/1.9 var(--mono);color:#3f5563;letter-spacing:1px}
+@media print{
+  body{background:#fff}
+  header,.bg,.ph,.foot,.no-print{display:none!important}
+  main{padding:0;max-width:none}
+  .panel{border:0;box-shadow:none;background:#fff;margin:0}
+  .pb{padding:0}
+  .paper{padding:0;border-radius:0}
+}
+@media(max-width:900px){
+  .grid4{grid-template-columns:repeat(2,1fr)}
+  .hm{grid-template-columns:repeat(4,1fr)}
+  .tabs{overflow:auto}
+}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+
+<header>
+  <svg class="logo" viewBox="0 0 40 40" fill="none">
+    <path d="M20 2 36 11v18L20 38 4 29V11L20 2Z" stroke="#3ad9ff" stroke-width="1.2" opacity=".85"/>
+    <rect x="14" y="14" width="12" height="12" rx="1.5" stroke="#8df0ff" stroke-width="1.1"/>
+    <path d="M17 17h6v6h-6z" fill="#3ad9ff" opacity=".5"/>
+  </svg>
+  <div class="title">教师控制台<small>COA-09 · TEACHING CONSOLE</small></div>
+  <div class="spacer"></div>
+  <div class="tabs">
+    <button class="tab on" data-tab="heat">错因热力图</button>
+    <button class="tab" data-tab="report">实验报告</button>
+    <button class="tab" data-tab="viva">答辩追问</button>
+  </div>
+  <div style="width:12px"></div>
+  <button class="btn ghost" id="importBtn">导入数据</button>
+  <input type="file" id="fileInput" accept=".json" class="hide">
+</header>
+
+<main>
+  <!-- ================= 错因热力图 ================= -->
+  <section id="view-heat">
+    <div class="panel">
+      <div class="ph"><h2>班级总览</h2><em>Cohort Overview</em>
+        <div class="right"><span style="font:400 10px/1 var(--mono);color:#5f788a" id="cohortTag">计科 2025 级 · 2026 春季学期 · 示例数据</span></div>
+      </div>
+      <div class="pb">
+        <div class="grid4">
+          <div class="stat"><b id="s1">—</b><span>参课学生</span></div>
+          <div class="stat"><b id="s2">—</b><span>平均得分 / 40</span></div>
+          <div class="stat"><b id="s3">—</b><span>26 步完成率</span></div>
+          <div class="stat"><b id="s4">—</b><span>平均用时（分钟）</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><h2>26 步错因热力图</h2><em>Step Error Heatmap</em>
+        <div class="right"><span style="font:400 10px/1 var(--mono);color:#5f788a">颜色越暖＝出错越集中</span></div>
+      </div>
+      <div class="pb">
+        <div class="hm" id="heat"></div>
+        <div class="legend">
+          <span>0%</span><i style="background:linear-gradient(90deg,#123f4d,#1f7d8f,#3ad9ff,#ffb64d,#ff5c72)"></i><span>60%+</span>
+          <span style="margin-left:14px">数字＝该步出错率</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2" style="display:grid;grid-template-columns:1.1fr .9fr;gap:16px">
+      <div class="panel">
+        <div class="ph"><h2>错误类型 Top 5</h2><em>Top Errors</em></div>
+        <div class="pb" style="padding-top:8px"><table id="topErr"></table></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><h2>用时最长 5 步</h2><em>Slowest Steps</em></div>
+        <div class="pb" style="padding-top:8px"><table id="slowStep"></table></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><h2>讲评建议</h2><em>Teaching Hint</em></div>
+      <div class="pb"><p id="advice" style="font-size:13px;line-height:1.9;color:#b9d2e2"></p></div>
+    </div>
+  </section>
+
+  <!-- ================= 实验报告 ================= -->
+  <section id="view-report" class="hide">
+    <div class="panel no-print">
+      <div class="ph"><h2>选择学生</h2><em>Student</em>
+        <div class="right">
+          <select id="stuSel"></select>
+          <button class="btn" id="printBtn">打印 / 导出 PDF</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel"><div class="pb"><div class="paper" id="paper"></div></div></div>
+  </section>
+
+  <!-- ================= 答辩追问 ================= -->
+  <section id="view-viva" class="hide">
+    <div class="panel no-print">
+      <div class="ph"><h2>答辩式追问</h2><em>Viva · Anti-Ghostwriting</em>
+        <div class="right">
+          <select id="vivaSel"></select>
+          <button class="btn" id="genBtn">生成追问</button>
+        </div>
+      </div>
+      <div class="pb">
+        <p style="font-size:12px;color:var(--muted);line-height:1.85">
+          追问题目由该生的实际错误记录生成：只问他做错过的步骤和不确定的地方，不随机抽整本书。
+          学生用文字作答，系统按要点给分（要点命中 ≥60% 记“通过”，30%–60% 记“存疑”，&lt;30% 记“需复核”）。
+          这一步用来判断报告是不是他本人做的。
+        </p>
+      </div>
+    </div>
+    <div id="vivaBox"></div>
+    <div class="panel no-print" id="vivaSum" style="display:none">
+      <div class="ph"><h2>判定结果</h2><em>Verdict</em></div>
+      <div class="pb" id="vivaSumBody"></div>
+    </div>
+  </section>
+
+  <div class="foot">教师端 · 数据来源：实验舱操作日志（JSON）· 未接入真实日志时展示示例数据</div>
+</main>
+
+<script>
+/* ============ 步骤与错因定义（与申报书 26 步一致） ============ */
+const STEPS = [
+  ["1","系统清零与器件认知",3],["2","置操作数 A",3],["3","打入暂存 LT1",2],["4","置 B 并打入 LT2",4],
+  ["5","选择算术加法",4],["6","门控切换读结果",4],["7","校验进位 CY",4],["8","切换逻辑运算",4],
+  ["9","填写功能表对照",6],["10","置存储器地址",3],["11","写入数据",4],["12","读回校验",3],
+  ["13","三态总线切换",5],["14","总线冲突排查",5],["15","解析微指令格式",6],["16","设计取指微程序",8],
+  ["17","写入 2816",6],["18","设计加法执行微程序",8],["19","设置下址与转移",8],["20","全速运行 8 条指令",10],
+  ["21","单步观察整机通路",8],["22","扩展移位指令",12],["23","配置 8255 控制字",6],["24","完成 I/O 联调",8],
+  ["25","故障注入定位",10],["26","生成报告与画像",8]
+];
+const ERRORS = {
+  E01:"拨码数值拨错",E02:"脉冲时机不对",E03:"门控顺序颠倒",E04:"总线冲突未处理",
+  E05:"写脉冲过窄",E06:"下址配置错误",E07:"功能位选错",E08:"未清零直接置数",
+  E09:"控制字方向错",E10:"未读回校验"
+};
+/* 每步主要错因 + 基准错误率（示例口径，用于演示与统计对照） */
+const BASE = [
+  ["E08",.42],["E01",.18],["E02",.24],["E02",.12],["E07",.36],["E03",.51],["E07",.22],["E07",.31],
+  ["E10",.27],["E01",.15],["E05",.44],["E10",.33],["E04",.29],["E04",.48],["E06",.34],["E06",.57],
+  ["E05",.39],["E06",.46],["E06",.55],["E02",.41],["E10",.28],["E06",.52],["E09",.35],["E09",.43],
+  ["E04",.61],["E10",.20]
+];
+
+/* 确定性伪随机，保证每次刷新数据一致 */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const rnd = mulberry32(20261026);
+const STA = STEPS.reduce((t,s)=>t+s[2],0);   // 标准总用时（分钟）
+
+const SURNAME="赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦许何吕张孔曹严";
+const GIVEN="雨轩子涵思远佳宁宇泽欣然文博一鸣嘉怡若溪明哲昊天书瑶";
+const STUDENTS = Array.from({length:42},(_,i)=>{
+  const name = SURNAME[Math.floor(rnd()*SURNAME.length)] + GIVEN[Math.floor(rnd()*GIVEN.length)];
+  const id = "2023" + String(10101+i).slice(1);
+  // 每个学生每步是否出错
+  const errs = [];
+  BASE.forEach(([code,rate],si)=>{
+    const p = rate * (0.45 + rnd()*1.1);
+    if (rnd() < p) errs.push({step:si+1, code, tries: 1 + Math.floor(rnd()*2)});
+  });
+  const score = 40 - errs.reduce((s,e)=>s + Math.min(2, e.tries), 0);
+  const used = Math.round(STA*(0.62 + rnd()*0.42)) + errs.length;
+  return {id, name, errs, score, used};
+});
+
+let DATA = STUDENTS.slice();
+let ACTIVE = DATA[0].id;
+
+/* ============ 统计 ============ */
+function stepStats(students){
+  return STEPS.map((s,i)=>{
+    const hit = students.filter(st=>st.errs.some(e=>e.step===i+1)).length;
+    const code = BASE[i][0];
+    return {no:s[0], name:s[1], min:s[2], errs:hit, rate:hit/students.length, code};
+  });
+}
+function colorFor(rate){
+  const stops=[[0,22,63,77],[0.15,31,125,143],[0.3,58,217,255],[0.45,255,182,77],[0.6,255,92,114]];
+  let a=stops[0],b=stops[stops.length-1];
+  for(let i=0;i<stops.length-1;i++){ if(rate>=stops[i][0]&&rate<=stops[i+1][0]){a=stops[i];b=stops[i+1];break} }
+  const t=(rate-a[0])/((b[0]-a[0])||1);
+  const c=[1,2,3].map(k=>Math.round(a[k]+(b[k]-a[k])*t));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+function renderHeat(){
+  const st = stepStats(DATA);
+  document.getElementById("s1").textContent = DATA.length;
+  document.getElementById("s2").textContent = (DATA.reduce((s,x)=>s+x.score,0)/DATA.length).toFixed(1);
+  const done = DATA.reduce((s,x)=>s+(26-x.errs.length),0)/(DATA.length*26);
+  document.getElementById("s3").textContent = (done*100).toFixed(0)+"%";
+  document.getElementById("s4").textContent = Math.round(DATA.reduce((s,x)=>s+x.used,0)/DATA.length);
+
+  document.getElementById("heat").innerHTML = st.map(s=>`
+    <div class="cell" style="background:${colorFor(s.rate)}" title="第${s.no}步 ${s.name}｜出错率 ${(s.rate*100).toFixed(0)}%｜主因：${ERRORS[s.code]}">
+      <b>STEP ${s.no}</b>
+      <u>${(s.rate*100).toFixed(0)}%</u>
+      <small>${s.name}</small>
+    </div>`).join("");
+
+  // Top5 错误类型
+  const byCode={};
+  DATA.forEach(s=>s.errs.forEach(e=>byCode[e.code]=(byCode[e.code]||0)+1));
+  const top=Object.entries(byCode).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const max=top[0][1];
+  document.getElementById("topErr").innerHTML =
+    "<tr><th>错因</th><th>人次</th><th style='width:42%'>占比</th></tr>" +
+    top.map(([c,n])=>`<tr><td>${ERRORS[c]}</td><td class="mono">${n}</td>
+      <td><div class="bar"><i style="width:${n/max*100}%;background:linear-gradient(90deg,#1e93b8,#ff5c72)"></i></div></td></tr>`).join("");
+
+  // 用时最长
+  const slow=[...st].sort((a,b)=>b.min-a.min).slice(0,5);
+  document.getElementById("slowStep").innerHTML =
+    "<tr><th>步骤</th><th>标准用时</th><th>平均用时</th></tr>" +
+    slow.map(s=>`<tr><td>${s.no}. ${s.name}</td><td class="mono">${s.min} min</td>
+      <td class="mono">${Math.round(s.min*(1.15+s.rate*0.9))} min</td></tr>`).join("");
+
+  // 讲评建议
+  const worst=[...st].sort((a,b)=>b.rate-a.rate).slice(0,2);
+  document.getElementById("advice").innerHTML =
+    `本次班级错得最集中的两步是 <b style="color:#ffb64d">第 ${worst[0].no} 步（${worst[0].name}，${(worst[0].rate*100).toFixed(0)}%）</b>
+     和 <b style="color:#ffb64d">第 ${worst[1].no} 步（${worst[1].name}，${(worst[1].rate*100).toFixed(0)}%）</b>，
+     主要错因分别是「${ERRORS[worst[0].code]}」与「${ERRORS[worst[1].code]}」。<br>
+     建议讲评时先在这两步各花 5 分钟：把错例的操作回放投出来，让学生指出“哪一拍做错了”，
+     而不是直接演示正确操作——先诊断、后纠正，这一段的记忆最强。<br>
+     另外 <b>${ERRORS[top[0][0]]}</b> 共出现 ${top[0][1]} 人次，属于全班性问题，可在下节课开场用 3 分钟统一澄清。`;
+}
+
+/* ============ 报告 ============ */
+function radarSVG(values, labels){
+  const cx=110,cy=100,R=72;
+  const pt=(i,r)=>{const a=-Math.PI/2+i*2*Math.PI/labels.length;return [cx+Math.cos(a)*r, cy+Math.sin(a)*r]};
+  let s="";
+  [0.25,0.5,0.75,1].forEach(k=>{
+    s+=`<polygon points="${labels.map((_,i)=>pt(i,R*k).join(",")).join(" ")}" fill="none" stroke="#c9d8e0" stroke-width="1"/>`;
+  });
+  labels.forEach((_,i)=>{const [x2,y2]=pt(i,R);s+=`<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="#dde7ec"/>`});
+  s+=`<polygon points="${values.map((v,i)=>pt(i,R*v).join(",")).join(" ")}" fill="rgba(30,147,184,.22)" stroke="#1e93b8" stroke-width="1.6"/>`;
+  labels.forEach((t,i)=>{const [tx,ty]=pt(i,R+16);
+    s+=`<text x="${tx}" y="${ty}" font-size="8.5" fill="#555" text-anchor="middle" dominant-baseline="middle">${t}</text>`});
+  return `<svg viewBox="0 0 220 200" style="width:220px;height:200px">${s}</svg>`;
+}
+
+function renderReport(){
+  const stu = DATA.find(s=>s.id===ACTIVE) || DATA[0];
+  const dims = ["数据通路","总线时序","微程序","整机联调","I/O 接口","故障诊断"];
+  const idxMap = {0:[1,2,3],1:[6,13,14],2:[15,16,17,18,19,20],3:[21,22],4:[23,24],5:[14,25]};
+  const vals = dims.map((d,i)=>{
+    const total = idxMap[i].length;
+    const miss = stu.errs.filter(e=>idxMap[i].includes(e.step)).length;
+    return Math.max(0.2, 1 - miss/total);
+  });
+  const level = stu.score>=36?"优秀":stu.score>=30?"良好":stu.score>=24?"合格":"需补强";
+  const errRows = stu.errs.slice().sort((a,b)=>a.step-b.step);
+  const stepRows = STEPS.map((s,i)=>{
+    const e = errRows.find(x=>x.step===i+1);
+    const sec = Math.round(s[2]*(1 + (e?0.4:0) + (rnd()*0.25)));
+    const got = e ? Math.max(0, (i<9||i===13||i===14)? (i===4||i===5?2:1) - 0 : 0) : 0;
+    return `<tr>
+      <td style="text-align:center">${s[0]}</td>
+      <td>${s[1]}</td>
+      <td style="text-align:center">${sec} min</td>
+      <td style="text-align:center">${e? '<span class="no">未一次通过</span>' : '<span class="ok">通过</span>'}</td>
+      <td>${e? ERRORS[e.code] : "—"}</td>
+    </tr>`;
+  }).join("");
+
+  document.getElementById("paper").innerHTML = `
+    <h1>计算机组成原理虚拟仿真实验报告</h1>
+    <div class="sub">实验一 · 运算器与整机通路（26 步）｜系统自动生成</div>
+    <div class="kv">
+      <div><i>姓　名：</i>${stu.name}</div><div><i>学　号：</i>${stu.id}</div>
+      <div><i>班　级：</i>计科 2025 级</div><div><i>实验时间：</i>2026-03-18 14:00</div>
+      <div><i>实验舱段：</i>01 运算器 / 05 微程序 / 09 I/O</div><div><i>环境版本：</i>COA-09 v1.0</div>
+    </div>
+
+    <h3>一、实验结果概要</h3>
+    <table>
+      <tr><th style="width:26%">总分（满分 40）</th><td><b>${stu.score}</b> 分　（${level}）</td></tr>
+      <tr><th>一次通过步骤</th><td>${26-stu.errs.length} / 26 步</td></tr>
+      <tr><th>实验用时</th><td>${stu.used} 分钟（标准 ${STA} 分钟）</td></tr>
+      <tr><th>主要问题</th><td>${errRows.length? errRows.slice(0,3).map(e=>`第${e.step}步 ${ERRORS[e.code]}`).join("；") : "无"}</td></tr>
+    </table>
+
+    <h3>二、操作记录</h3>
+    <table>
+      <tr><th style="width:12%">序号</th><th>步骤名称</th><th style="width:15%">用时</th><th style="width:16%">判定</th><th style="width:26%">错因</th></tr>
+      ${stepRows}
+    </table>
+
+    <h3>三、能力达成</h3>
+    <div style="display:flex;gap:18px;align-items:center">
+      ${radarSVG(vals, dims)}
+      <div style="font-size:12px;color:#333;line-height:1.9">
+        ${dims.map((d,i)=>`${d}：<b>${(vals[i]*100).toFixed(0)}%</b>`).join("<br>")}
+      </div>
+    </div>
+
+    <h3>四、错误分析与结论</h3>
+    ${errRows.length? `<div class="note">
+        ${errRows.slice(0,3).map(e=>{
+          const nm = STEPS[e.step-1][1];
+          return `· 第 ${e.step} 步「${nm}」出现「${ERRORS[e.code]}」，尝试 ${e.tries} 次后通过。`}).join("<br>")}
+      </div>
+      <p style="font-size:12px;margin-top:8px">上述问题集中在<b>门控时序</b>与<b>微指令下址</b>两类：
+      前者说明对“总线同一时刻只允许一个源驱动”的理解还不牢，后者说明下址字段与指令转移的对应关系尚未建立。
+      建议重做第 6、11、14、19 步，并在下一次实验前完成两道同类型练习题。</p>`
+      : `<p style="font-size:12px">全部 26 步一次通过，操作序列规范，门控顺序与写时序均正确。建议进入扩展任务：为模型机增加一条移位指令。</p>`}
+
+    <div class="sign">
+      <span>学生签名：__________</span>
+      <span>教师签名：__________</span>
+      <span>生成时间：2026-03-18 15:12</span>
+    </div>`;
+}
+
+/* ============ 答辩追问 ============ */
+const QBANK = {
+  E08:{q:"你进入实验后第一步做了什么？如果跳过这一步会发生什么？",
+       k:["清零","残值","上一次","残留","状态"]},
+  E01:{q:"你是怎么确认拨码送进去的数值是对的？看的是哪个显示？",
+       k:["总线","数据总线","核对","一致","显示"]},
+  E02:{q:"单步脉冲（T+）为什么不能连按？连按会出现什么现象？",
+       k:["一次","锁存","打入","连续","覆盖","来不及"]},
+  E03:{q:"门控 C-G 和 ALU-G 为什么不能同时打开？请用电平的角度解释。",
+       k:["冲突","两个源","同时驱动","不确定","高阻","总线"]},
+  E04:{q:"总线冲突时你看到的现象是什么？你是怎么定位到是哪两个门同时打开的？",
+       k:["冲突","同时","门","定位","状态","提示"]},
+  E05:{q:"写脉冲宽度不够时，存储器会报错吗？你最后是怎么发现数据没写进去的？",
+       k:["不报错","读回","校验","旧值","宽度","没写"]},
+  E06:{q:"微指令里的下址字段是干什么的？如果配错，现象是什么？",
+       k:["下一条","地址","跳转","死循环","指令","顺序"]},
+  E07:{q:"你是怎么在功能表里找到加法对应的 M、S3—S0、Cn 组合的？",
+       k:["功能表","M","S3","Cn","算术","行"]},
+  E09:{q:"8255 的控制字是干什么的？方向配反了会看到什么现象？",
+       k:["控制字","方向","输入","输出","PA","PB"]},
+  E10:{q:"写完存储器后为什么要读回一次？不读回可能漏掉什么问题？",
+       k:["校验","读回","一致","写入","失败","比对"]}
+};
+
+function renderViva(){
+  const stu = DATA.find(s=>s.id===document.getElementById("vivaSel").value) || DATA[0];
+  const worst = stu.errs.slice().sort((a,b)=>a.step-b.step).slice(0,3);
+  const box = document.getElementById("vivaBox");
+  if(!worst.length){
+    box.innerHTML = `<div class="panel"><div class="pb">该生 26 步全部一次通过，无错误记录。可改为通用追问：<br><br>
+      <b>1.</b> 如果 M 从 0 改成 1，同样的拨码会得到什么结果？<br>
+      <b>2.</b> 如果把 Cn 从 1 改成 0，加法结果会怎样变？<br>
+      <b>3.</b> 说出你这次实验里最没有把握的一步，为什么。</div></div>`;
+    return;
+  }
+  box.innerHTML = worst.map((e,i)=>{
+    const q = QBANK[e.code] || {q:"请说明第 "+e.step+" 步的操作过程与判断依据。", k:["步骤","依据","结果"]};
+    return `<div class="panel"><div class="pb"><div class="q">
+      <div class="qh"><b>Q${i+1}</b><p>${q.q}</p>
+        <span class="tag y">对应第 ${e.step} 步 · ${ERRORS[e.code]}</span></div>
+      <textarea placeholder="让学生用自己的话写，不要提示关键词…"></textarea>
+      <div class="hint">评分要点（教师可见）：${q.k.join(" / ")}</div>
+      <div class="res"></div>
+      <div style="margin-top:8px"><button class="btn ghost judge" data-i="${i}">判定</button></div>
+    </div></div></div>`;
+  }).join("");
+
+  box.querySelectorAll(".judge").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const i = +btn.dataset.i;
+      const wrap = btn.closest(".q");
+      const ans = wrap.querySelector("textarea").value.trim();
+      const q = QBANK[worst[i].code];
+      const keys = q ? q.k : [];
+      const hit = keys.filter(k=>ans.includes(k)).length;
+      const ratio = keys.length? hit/keys.length : 0;
+      const res = wrap.querySelector(".res");
+      const verdict = ratio>=0.6? ["通过","g"] : ratio>=0.3? ["存疑","y"] : ["需复核","r"];
+      res.className = "res show";
+      res.innerHTML = `<span class="tag ${verdict[1]}">${verdict[0]}</span>
+        命中要点 ${hit}/${keys.length}（${(ratio*100).toFixed(0)}%）
+        ${ratio<0.3? "　→ 建议当面口头追问一次" : ""}`;
+      updateVivaSum();
+    });
+  });
+}
+
+function updateVivaSum(){
+  const tags = [...document.querySelectorAll("#vivaBox .q .res.show .tag")];
+  if(!tags.length) return;
+  const cnt = {通过:0, 存疑:0, 需复核:0};
+  tags.forEach(t=>cnt[t.textContent]++);
+  const sum = document.getElementById("vivaSum");
+  sum.style.display = "";
+  const conclusion = cnt.需复核>0 ? ["建议当面复核","r"] : cnt.存疑>0 ? ["基本可信，抽问一次","y"] : ["通过，报告可信","g"];
+  document.getElementById("vivaSumBody").innerHTML =
+    `<p style="font-size:13px;line-height:2">通过 <b>${cnt.通过}</b> 题，存疑 <b>${cnt.存疑}</b> 题，需复核 <b>${cnt.需复核}</b> 题　
+     <span class="tag ${conclusion[1]}">${conclusion[0]}</span></p>
+     <p style="font-size:11.5px;color:#7d94a8;margin-top:6px">判定依据仅为要点命中率，最终结论由教师确认；命中率不等于理解程度，口头追问仍是必要的。</p>`;
+}
+
+/* ============ 交互 ============ */
+document.querySelectorAll(".tab").forEach(t=>{
+  t.addEventListener("click",()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
+    t.classList.add("on");
+    ["heat","report","viva"].forEach(v=>{
+      document.getElementById("view-"+v).classList.toggle("hide", v!==t.dataset.tab);
+    });
+  });
+});
+
+const sel = document.getElementById("stuSel"), vsel = document.getElementById("vivaSel");
+function fillSelects(){
+  const opts = DATA.map(s=>`<option value="${s.id}">${s.name}　${s.id}　${s.score} 分</option>`).join("");
+  sel.innerHTML = opts; vsel.innerHTML = opts;
+  sel.value = ACTIVE; vsel.value = ACTIVE;
+}
+sel.addEventListener("change", ()=>{ACTIVE = sel.value; renderReport()});
+vsel.addEventListener("change", renderViva);
+document.getElementById("genBtn").addEventListener("click", renderViva);
+document.getElementById("printBtn").addEventListener("click", ()=>window.print());
+document.getElementById("importBtn").addEventListener("click", ()=>document.getElementById("fileInput").click());
+document.getElementById("fileInput").addEventListener("change", e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const fr = new FileReader();
+  fr.onload = ()=>{
+    try{
+      const arr = JSON.parse(fr.result);
+      if(!Array.isArray(arr) || !arr.length) throw 0;
+      DATA = arr.map(x=>({id:x.id||x.学号||"", name:x.name||x.姓名||"",
+        errs:(x.errs||x.errors||[]).map(e=>({step:+e.step, code:e.code||"E01", tries:e.tries||1})),
+        score:+(x.score ?? 40-(x.errs||[]).length), used:+(x.used||x.用时||90)}));
+      ACTIVE = DATA[0].id;
+      document.getElementById("cohortTag").textContent = "已导入：" + f.name;
+      fillSelects(); renderHeat(); renderReport(); renderViva();
+
+/* 支持 #report / #viva 直达（便于投屏与分享） */
+(function initTab(){
+  const h = (location.hash||"").replace("#","");
+  const target = ["heat","report","viva"].includes(h) ? h : null;
+  if(!target) return;
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on", t.dataset.tab===target));
+  ["heat","report","viva"].forEach(v=>document.getElementById("view-"+v).classList.toggle("hide", v!==target));
+})();
+
+/* 支持 #report / #viva 直达（便于投屏与分享） */
+(function initTab(){
+  const h = (location.hash||"").replace("#","");
+  const target = ["heat","report","viva"].includes(h) ? h : null;
+  if(!target) return;
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on", t.dataset.tab===target));
+  ["heat","report","viva"].forEach(v=>document.getElementById("view-"+v).classList.toggle("hide", v!==target));
+})();
+    }catch(err){ alert("JSON 格式不对，需要数组，元素含 name / id / errs[{step,code,tries}]"); }
+  };
+  fr.readAsText(f, "utf-8");
+});
+
+fillSelects(); renderHeat(); renderReport(); renderViva();
+
+/* 支持 #report / #viva 直达（便于投屏与分享） */
+(function initTab(){
+  const h = (location.hash||"").replace("#","");
+  const target = ["heat","report","viva"].includes(h) ? h : null;
+  if(!target) return;
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on", t.dataset.tab===target));
+  ["heat","report","viva"].forEach(v=>document.getElementById("view-"+v).classList.toggle("hide", v!==target));
+})();
+
+/* 支持 #report / #viva 直达（便于投屏与分享） */
+(function initTab(){
+  const h = (location.hash||"").replace("#","");
+  const target = ["heat","report","viva"].includes(h) ? h : null;
+  if(!target) return;
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on", t.dataset.tab===target));
+  ["heat","report","viva"].forEach(v=>document.getElementById("view-"+v).classList.toggle("hide", v!==target));
+})();
+</script>
+</body>
+</html>
