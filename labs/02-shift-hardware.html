@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实验二：纯硬件拨码移位模拟器 (V4版)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            color: #eceff1;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            background: #1e272e;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.9);
+            max-width: 1050px;
+            width: 100%;
+            border: 2px solid #37474f;
+        }
+        h2 { margin-top: 0; color: #80cbc4; text-align: center; border-bottom: 2px solid #37474f; padding-bottom: 15px;}
+        
+        #conflict-warning {
+            display: none; background-color: #d32f2f; color: white; text-align: center;
+            padding: 10px; border-radius: 6px; font-weight: bold; font-size: 18px;
+            margin-bottom: 20px; animation: blink 0.6s infinite alternate;
+        }
+        @keyframes blink { from { opacity: 1; } to { opacity: 0.5; } }
+
+        /* 布局 */
+        .hardware-layout {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;
+        }
+        .panel {
+            background: #263238; padding: 15px; border-radius: 8px;
+            border: 1px solid #37474f; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
+        }
+        .panel h3 { margin-top: 0; font-size: 15px; color: #ffcc80; text-align: center; margin-bottom: 15px;}
+
+        /* 拨码开关通用样式 */
+        .dip-switch-area {
+            background: #111; padding: 15px; border-radius: 8px;
+            margin-bottom: 15px; border: 1px solid #000;
+        }
+        .dip-monitor {
+            text-align: center; color: #4dd0e1; font-family: monospace;
+            font-size: 20px; font-weight: bold; margin-bottom: 15px;
+            background: #000; padding: 8px; border-radius: 4px; border: 1px solid #222;
+        }
+        .dip-groups { display: flex; justify-content: space-between; }
+        .nibble-group {
+            display: flex; gap: 6px; background: #222;
+            padding: 8px; border-radius: 6px; border: 1px solid #000;
+        }
+        .dip-single { display: flex; flex-direction: column; align-items: center; }
+        .dip-btn {
+            width: 24px; height: 45px; background: #78909c;
+            border: 2px solid #000; border-radius: 4px; cursor: pointer;
+            position: relative; box-shadow: inset 0 0 8px rgba(0,0,0,0.6);
+            transition: background 0.1s;
+        }
+        .dip-btn.data.active { background: #ef5350; } 
+        .dip-btn.ctrl.active { background: #29b6f6; } 
+        
+        .dip-btn::after {
+            content: ''; position: absolute; width: 100%; height: 50%;
+            background: #fff; opacity: 0.35; top: 0; left: 0; border-radius: 2px 2px 0 0;
+        }
+        .dip-btn.active::after { top: auto; bottom: 0; border-radius: 0 0 2px 2px; }
+        .dip-label { font-size: 11px; color: #b0bec5; margin-top: 6px; font-family: monospace; font-weight: bold;}
+
+        /* 控制行 */
+        .control-row {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 10px; background: #1e272e; padding: 8px 12px;
+            border-radius: 6px; border: 1px solid #2f3640;
+        }
+        label { font-size: 13px; font-weight: bold; color: #b0bec5; }
+        select {
+            padding: 6px; font-size: 14px; border: 1px solid #222;
+            border-radius: 4px; background: #eceff1; color: #000;
+            outline: none; text-align: center; font-weight: bold; cursor: pointer;
+        }
+        
+        .toggle-switch { width: 150px; }
+        .door-open { background: #66bb6a; color: #000; border-color: #2e7d32;}
+        .door-closed { background: #ef5350; color: #fff; border-color: #c62828;}
+
+        .status-screen {
+            background: #000; color: #00e676; font-family: 'Courier New', Courier, monospace;
+            padding: 10px; border-radius: 4px; text-align: center;
+            font-size: 22px; font-weight: bold; border: 2px inset #444; min-width: 80px;
+        }
+        .status-z {
+            background: #000; color: #ffca28; font-family: 'Courier New', Courier, monospace;
+            padding: 10px; border-radius: 4px; text-align: center;
+            font-size: 22px; font-weight: bold; border: 2px inset #444; min-width: 50px;
+        }
+
+        .cmd-formula {
+            color: #4fc3f7; font-size: 20px; text-align: center; margin-top: 15px;
+            font-family: monospace; background: #000; padding: 10px; border-radius: 6px;
+            border: 1px solid #333; font-weight: bold; letter-spacing: 1px;
+        }
+
+        .pulse-btn {
+            background-color: #fbc02d; color: #000; border: 2px solid #f57f17;
+            border-radius: 8px; padding: 15px; font-size: 18px; font-weight: bold;
+            cursor: pointer; width: 100%; box-shadow: 0 5px 0 #f57f17;
+            transition: all 0.1s; margin-bottom: 20px;
+        }
+        .pulse-btn:active { transform: translateY(5px); box-shadow: 0 0 0 #f57f17; }
+
+        /* 数据总线 LED 显示区 */
+        .bus-container {
+            background: #0a0a0a; padding: 20px; border-radius: 10px;
+            border: 2px solid #37474f; text-align: center;
+        }
+        .bus-title { color: #81c784; margin-bottom: 15px; font-weight: bold; font-size: 16px;}
+        .led-grid { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+        .led-box { display: flex; flex-direction: column; align-items: center; }
+        .led {
+            width: 22px; height: 22px; border-radius: 50%; background: #222;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.9); margin-bottom: 5px; border: 1px solid #000;
+        }
+        .led.on { background: #00e676; box-shadow: 0 0 15px #00e676, inset 0 1px 2px rgba(255,255,255,0.4); }
+        .led.hz { background: #333; opacity: 0.5; }
+        .led.conflict { background: #f44336; box-shadow: 0 0 15px #f44336; animation: blink 0.3s infinite;}
+        .z-led.on { background: #ffca28; box-shadow: 0 0 15px #ffca28, inset 0 1px 2px rgba(255,255,255,0.4); }
+        .led-label { font-size: 10px; color: #78909c; font-family: monospace; }
+        .bus-hex { font-size: 28px; font-family: monospace; color: #fff; margin-top: 15px; font-weight: bold;}
+        
+        .cy-container {
+            display: inline-block; margin-left: 20px; padding: 15px 20px;
+            border: 2px dashed #ff9800; border-radius: 8px; background: #3e2723; vertical-align: top;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🔄 实验二：纯硬件拨码 移位寄存器模拟器 (V4物理版)</h2>
+    
+    <div id="conflict-warning">⚠️ 严重警告：总线冲突！输入门(C-G)与输出门(299-G)不可同时打开！</div>
+
+    <div class="hardware-layout">
+        <div class="panel">
+            <h3>🚪 数据输入与大门控制</h3>
+            
+            <div class="dip-switch-area">
+                <div class="dip-monitor">当前拨码状态: <span id="dip-hex-display">0001</span> H</div>
+                <div class="dip-groups" id="dip-container">
+                    </div>
+            </div>
+
+            <div class="control-row">
+                <label>C-G (数据输入城门)</label>
+                <select id="cg-switch" class="toggle-switch door-closed">
+                    <option value="1" selected>1 (关门 阻断输入)</option>
+                    <option value="0">0 (开门 送数据上路)</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label>299-G (移位输出城门)</label>
+                <select id="g299-switch" class="toggle-switch door-closed">
+                    <option value="1" selected>1 (关门 阻断输出)</option>
+                    <option value="0">0 (开门 看移位结果)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>📦 移位寄存器 内部状态 (上帝视角)</h3>
+            
+            <div style="background: #111; padding: 20px; border-radius: 8px; border: 1px solid #333; margin-top: 20px; text-align: center;">
+                <label style="display: block; margin-bottom: 10px; font-size: 15px; color: #4fc3f7;">主寄存器 (16位) 数据:</label>
+                <div class="status-screen" id="reg-display">0000 H</div>
+                
+                <div style="margin-top: 30px; display: flex; justify-content: center; gap: 20px; align-items: center;">
+                    <label style="font-size: 15px; color: #ffca28;">Z (外挂进位篮子) 状态:</label>
+                    <div class="status-z" id="z-display">0</div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 25px; font-size: 12px; color: #78909c; line-height: 1.6; text-align: center;">
+                注：内部状态是实时的。但只有打开 <b>299-G</b> 输出大门时，主寄存器的数据才会投射到下方的公共数据总线上。
+            </div>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-bottom: 20px;">
+        <h3>⚙️ 移位控制指令拨码 (S1, S0, M)</h3>
+        
+        <div style="display: flex; justify-content: center; gap: 40px; padding: 10px 0;">
+            <div class="dip-single">
+                <div class="dip-btn ctrl active" id="ctrl-s1" onclick="toggleCtrl('s1')"></div>
+                <div class="dip-label" style="color: #4fc3f7;">S1</div>
+            </div>
+            <div class="dip-single">
+                <div class="dip-btn ctrl active" id="ctrl-s0" onclick="toggleCtrl('s0')"></div>
+                <div class="dip-label" style="color: #4fc3f7;">S0</div>
+            </div>
+            <div class="dip-single" style="margin-left: 20px;">
+                <div class="dip-btn ctrl active" id="ctrl-m" onclick="toggleCtrl('m')"></div>
+                <div class="dip-label" style="color: #4fc3f7;">M (进位)</div>
+            </div>
+        </div>
+
+        <div class="cmd-formula" id="cmd-formula">实时解析当前指令...</div>
+    </div>
+
+    <button class="pulse-btn" id="pulseBtn">⚡ 按下快门 (发送单步时钟脉冲 T+)</button>
+
+    <div style="text-align: center;">
+        <div class="bus-container" style="display: inline-block; width: 70%;">
+            <div class="bus-title" id="bus-status-title">中央大马路 (Data Bus)</div>
+            <div class="led-grid" id="led-grid"></div>
+            <div class="bus-hex" id="busHex">----</div>
+        </div>
+        
+        <div class="cy-container">
+            <div class="bus-title" style="color: #ffca28; font-size: 15px; margin-bottom: 10px;">Z (进位)</div>
+            <div class="led-box">
+                <div class="led z-led" id="led-z"></div>
+                <div class="led-label" style="color:#ffcc80; font-weight:bold; font-size: 12px;">指示灯</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 数据物理拨码区 (默认设置 0001H) ---
+    let dipSwitches = [
+        0,0,0,0, 
+        0,0,0,0, 
+        0,0,0,0, 
+        0,0,0,1  
+    ];
+    
+    // --- 指令物理拨码区 (默认设置 S1=1, S0=1, M=1 [置数]) ---
+    let ctrlState = { s1: 1, s0: 1, m: 1 };
+    
+    // --- 寄存器底层状态 ---
+    let registerData = 0; 
+    let zFlag = 0; 
+    let busState = { mode: 'HZ', val: 0 };
+
+    // 初始化 16位数据拨码 (D15 -> D0)
+    const dipContainer = document.getElementById('dip-container');
+    for (let group = 0; group < 4; group++) {
+        const nibbleDiv = document.createElement('div');
+        nibbleDiv.className = 'nibble-group';
+        for (let bit = 3; bit >= 0; bit--) {
+            const i = (3 - group) * 4 + bit; 
+            const singleDiv = document.createElement('div');
+            singleDiv.className = 'dip-single';
+            
+            const btn = document.createElement('div');
+            btn.className = 'dip-btn data';
+            if (dipSwitches[15-i] === 1) btn.classList.add('active'); 
+            btn.id = 'dip-' + i;
+            
+            btn.onclick = () => {
+                dipSwitches[15-i] = dipSwitches[15-i] ? 0 : 1;
+                btn.classList.toggle('active');
+                updateDipHex();
+            };
+
+            const label = document.createElement('div');
+            label.className = 'dip-label'; label.innerText = i;
+            singleDiv.appendChild(btn); singleDiv.appendChild(label);
+            nibbleDiv.appendChild(singleDiv);
+        }
+        dipContainer.appendChild(nibbleDiv);
+    }
+
+    // 更新拨码监视器十六进制值
+    function updateDipHex() {
+        let val = 0;
+        for (let i = 0; i < 16; i++) {
+            if (dipSwitches[15-i]) val += Math.pow(2, i);
+        }
+        document.getElementById('dip-hex-display').innerText = val.toString(16).toUpperCase().padStart(4, '0');
+        resolveBus(); 
+    }
+
+    // 处理控制拨码点击事件
+    function toggleCtrl(key) {
+        ctrlState[key] = ctrlState[key] ? 0 : 1;
+        const btn = document.getElementById('ctrl-' + key);
+        if (ctrlState[key]) btn.classList.add('active');
+        else btn.classList.remove('active');
+        parseCommand(); // 更新文案
+    }
+
+    // 初始化总线LED
+    const ledGrid = document.getElementById('led-grid');
+    for (let i = 15; i >= 0; i--) {
+        const box = document.createElement('div');
+        box.className = 'led-box';
+        const led = document.createElement('div');
+        led.className = 'led'; led.id = 'led-' + i;
+        const label = document.createElement('div');
+        label.className = 'led-label'; label.innerText = 'D' + i;
+        box.appendChild(led); box.appendChild(label);
+        ledGrid.appendChild(box);
+    }
+
+    // 解析当前指令拨码含义
+    function parseCommand() {
+        const { s1, s0, m } = ctrlState;
+        let text = "";
+        if (s1 === 1 && s0 === 1) {
+            text = "📥 置数 (Load)";
+            text += (m === 1) ? " [附带: Z灯强制置1]" : " [附带: Z灯强制清零]";
+        } else if (s1 === 0 && s0 === 1) {
+            text = "⬅️ 左移 (Shift Left)";
+            text += (m === 1) ? " [带 Z 进位大循环]" : " [不带进位内循环]";
+        } else if (s1 === 1 && s0 === 0) {
+            text = "➡️ 右移 (Shift Right)";
+            text += (m === 1) ? " [带 Z 进位大循环]" : " [不带进位内循环]";
+        } else if (s1 === 0 && s0 === 0) {
+            text = "⏸️ 保持 (Hold) [忽略脉冲]";
+        }
+        document.getElementById('cmd-formula').innerText = "当前指令： " + text;
+    }
+
+    // 更新UI颜色
+    function updateUIColors() {
+        ['cg-switch', 'g299-switch'].forEach(id => {
+            const el = document.getElementById(id);
+            el.className = (el.value === '0') ? 'toggle-switch door-open' : 'toggle-switch door-closed';
+        });
+        document.getElementById('reg-display').innerText = registerData.toString(16).toUpperCase().padStart(4, '0') + " H";
+        document.getElementById('z-display').innerText = zFlag;
+    }
+
+    // 核心物理引擎：解析当前总线状态
+    function resolveBus() {
+        const cg = document.getElementById('cg-switch').value;
+        const g299 = document.getElementById('g299-switch').value;
+
+        if (cg === '0' && g299 === '0') {
+            busState.mode = 'CONFLICT';
+        } else if (cg === '0' && g299 === '1') {
+            busState.mode = 'INPUT';
+            let dipVal = 0;
+            for(let i=0; i<16; i++) {
+                if(dipSwitches[15-i]) dipVal += Math.pow(2, i);
+            }
+            busState.val = dipVal;
+        } else if (cg === '1' && g299 === '0') {
+            busState.mode = 'REG';
+            busState.val = registerData;
+        } else {
+            busState.mode = 'HZ';
+            busState.val = 0;
+        }
+        renderBus();
+    }
+
+    // 渲染总线大马路视觉效果
+    function renderBus() {
+        updateUIColors();
+        const warning = document.getElementById('conflict-warning');
+        const title = document.getElementById('bus-status-title');
+        const hexDisplay = document.getElementById('busHex');
+        const zLed = document.getElementById('led-z');
+        let val = busState.val;
+
+        // 渲染 16 个总线灯
+        for (let i = 0; i < 16; i++) {
+            const led = document.getElementById('led-' + i);
+            led.className = 'led'; 
+            if (busState.mode === 'CONFLICT') led.classList.add('conflict');
+            else if (busState.mode === 'HZ') led.classList.add('hz');
+            else if ((val >> i) & 1) led.classList.add('on');
+        }
+
+        // 渲染 Z 灯 (随时可见)
+        if (zFlag === 1) zLed.classList.add('on');
+        else zLed.classList.remove('on');
+
+        if (busState.mode === 'CONFLICT') {
+            warning.style.display = 'block'; title.style.color = "#f44336";
+            title.innerText = "🚨 致命错误：总线冲突！"; hexDisplay.innerText = "ERROR";
+        } else {
+            warning.style.display = 'none';
+            if (busState.mode === 'HZ') {
+                title.innerText = "中央大马路 (Data Bus) - 高阻态 (空闲)"; title.style.color = "#78909c";
+                hexDisplay.innerText = "----";
+            } else if (busState.mode === 'INPUT') {
+                title.innerText = "中央大马路 (Data Bus) - 被【红色物理拨码】占用"; title.style.color = "#66bb6a";
+                hexDisplay.innerText = val.toString(16).toUpperCase().padStart(4, '0') + " H";
+            } else if (busState.mode === 'REG') {
+                title.innerText = "中央大马路 (Data Bus) - 显示【移位寄存器结果】"; title.style.color = "#4fc3f7";
+                hexDisplay.innerText = val.toString(16).toUpperCase().padStart(4, '0') + " H";
+            }
+        }
+    }
+
+    // 脉冲事件 (时钟上升沿 T+)
+    document.getElementById('pulseBtn').addEventListener('click', () => {
+        // 如果发生总线冲突，脉冲极有可能烧毁芯片，在此予以拦截
+        if (busState.mode === 'CONFLICT') return; 
+
+        const { s1, s0, m } = ctrlState;
+        
+        // 核心移位逻辑
+        if (s1 === 1 && s0 === 1) { 
+            // 【置数 Load】
+            // 寄存器只能吃当前总线上的数据
+            let currentBusVal = (busState.mode === 'HZ') ? 0 : busState.val;
+            registerData = currentBusVal;
+            // 忠于手册表2-2：M=1置位Z，M=0清零Z
+            zFlag = m; 
+            
+        } else if (s1 === 0 && s0 === 1) { 
+            // 【循环左移 Shift Left】
+            let oldBit15 = (registerData >>> 15) & 1;
+            registerData = (registerData << 1) & 0xFFFF; // 整体左移并截断到16位
+            
+            if (m === 0) {
+                // 内循环：最高位直接补到最低位
+                registerData = registerData | oldBit15; 
+            } else {
+                // 大循环：Z补给最低位，最高位掉进Z
+                registerData = registerData | zFlag;  
+                zFlag = oldBit15;       
+            }
+            
+        } else if (s1 === 1 && s0 === 0) { 
+            // 【循环右移 Shift Right】
+            let oldBit0 = registerData & 1;
+            registerData = registerData >>> 1; // 整体无符号右移
+            
+            if (m === 0) {
+                // 内循环：最低位直接补到最高位
+                registerData = registerData | (oldBit0 << 15); 
+            } else {
+                // 大循环：Z补给最高位，最低位掉进Z
+                registerData = registerData | (zFlag << 15); 
+                zFlag = oldBit0;        
+            }
+        }
+        // 如果 s1=0, s0=0，则保持不变 (Hold)
+        
+        resolveBus(); // 状态改变，刷新全场
+    });
+
+    // 绑定大门切换事件
+    ['cg-switch', 'g299-switch'].forEach(id => { 
+        document.getElementById(id).addEventListener('change', resolveBus); 
+    });
+
+    // 页面加载完成初始化
+    parseCommand();
+    updateDipHex();
+</script>
+</body>
+</html>
