@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实验三：存储器RAM读写模拟器</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #2c3e50; color: #ecf0f1; margin: 0; padding: 20px;
+            display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;
+        }
+        .container {
+            background: #34495e; padding: 30px; border-radius: 15px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5); max-width: 600px; width: 100%;
+            border: 2px solid #2c3e50;
+        }
+        h2 { margin-top: 0; color: #f1c40f; text-align: center; border-bottom: 2px solid #7f8c8d; padding-bottom: 15px;}
+        
+        /* 屏幕 */
+        .screen-bezel {
+            background: #111; padding: 15px; border-radius: 8px; margin-bottom: 20px;
+            border: 4px solid #222; box-shadow: inset 0 0 15px rgba(0,0,0,0.8);
+        }
+        .digital-screen {
+            font-family: 'Courier New', Courier, monospace; font-size: 32px; font-weight: bold;
+            color: #ff3d00; text-align: center; text-shadow: 0 0 10px #ff3d00;
+            letter-spacing: 2px; height: 40px; display: flex; align-items: center; justify-content: center;
+        }
+
+        /* 键盘 */
+        .keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+        .key {
+            background: #ecf0f1; color: #2c3e50; border: none; border-radius: 6px;
+            padding: 15px 0; font-size: 20px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 5px 0 #bdc3c7; transition: all 0.1s;
+        }
+        .key:active { transform: translateY(5px); box-shadow: 0 0 0 #bdc3c7; }
+        .key.func { background: #e74c3c; color: #fff; box-shadow: 0 5px 0 #c0392b; font-size: 15px;}
+        .key.func.orange { background: #e67e22; box-shadow: 0 5px 0 #d35400; }
+        .key.confirm { background: #2ecc71; color: #fff; box-shadow: 0 5px 0 #27ae60;}
+        
+        .pulse-btn {
+            background: #3498db; color: #fff; border: none; border-radius: 6px;
+            padding: 15px; font-size: 18px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 5px 0 #2980b9; transition: all 0.1s; width: 100%; margin-bottom: 20px;
+        }
+        .pulse-btn:active { transform: translateY(5px); box-shadow: 0 0 0 #2980b9; }
+
+        /* 指示灯面板 */
+        .led-panel { background: #1a1a1a; padding: 15px; border-radius: 8px; border: 1px solid #000; margin-bottom: 15px;}
+        .led-title { color: #2ecc71; margin-bottom: 10px; font-size: 13px; text-align: center;}
+        .led-title.yellow { color: #f1c40f; }
+        .led-grid { display: flex; justify-content: center; gap: 5px; }
+        .led { width: 16px; height: 16px; border-radius: 50%; background: #333; box-shadow: inset 0 2px 4px rgba(0,0,0,0.8); border: 1px solid #000; }
+        .led.green.on { background: #2ecc71; box-shadow: 0 0 12px #2ecc71; }
+        .led.yellow.on { background: #f1c40f; box-shadow: 0 0 12px #f1c40f; }
+
+        /* RAM 监视器 (侧边栏) */
+        .ram-monitor {
+            background: #1e272e; padding: 20px; border-radius: 15px; border: 2px solid #2c3e50;
+            width: 250px; max-height: 700px; overflow-y: auto; color: #d2dae2; font-family: monospace;
+        }
+        .ram-monitor h3 { margin-top: 0; color: #00a8ff; text-align: center; border-bottom: 1px solid #485460; padding-bottom: 10px;}
+        .ram-row { display: flex; justify-content: space-between; padding: 5px 10px; border-bottom: 1px solid #2f3640; }
+        .ram-row .addr { color: #f1c40f; font-weight: bold; }
+        .ram-row .data { color: #2ecc71; }
+        .ram-row.active { background: #3c40c6; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>💾 实验三：RAM 读写控制模拟器</h2>
+    
+    <div class="screen-bezel">
+        <div class="digital-screen" id="screen">CLASS SELECT</div>
+    </div>
+
+    <div class="keypad">
+        <button class="key" onclick="pressKey('C')">C</button>
+        <button class="key" onclick="pressKey('D')">D</button>
+        <button class="key" onclick="pressKey('E')">E</button>
+        <button class="key" onclick="pressKey('F')">F</button>
+        <button class="key" onclick="pressKey('8')">8</button>
+        <button class="key" onclick="pressKey('9')">9</button>
+        <button class="key" onclick="pressKey('A')">A</button>
+        <button class="key" onclick="pressKey('B')">B</button>
+        <button class="key" onclick="pressKey('4')">4</button>
+        <button class="key" onclick="pressKey('5')">5</button>
+        <button class="key" onclick="pressKey('6')">6</button>
+        <button class="key" onclick="pressKey('7')">7</button>
+        <button class="key" onclick="pressKey('0')">0</button>
+        <button class="key" onclick="pressKey('1')">1</button>
+        <button class="key" onclick="pressKey('2')">2</button>
+        <button class="key" onclick="pressKey('3')">3</button>
+        
+        <button class="key func" onclick="pressFunc('RST')">复位(CLR)</button>
+        <button class="key func orange" onclick="pressFunc('SEL')">实验选择</button>
+        <button class="key func" onclick="pressFunc('CANCEL')">取消</button>
+        <button class="key confirm" onclick="pressFunc('ENTER')">确认</button>
+    </div>
+
+    <button class="pulse-btn" onclick="triggerPulse()">⚡ 脉冲 (单步 PULSE)</button>
+
+    <div style="display: flex; gap: 10px;">
+        <div class="led-panel" style="flex: 2;">
+            <div class="led-title">数据总线 (16位 绿色)</div>
+            <div class="led-grid" id="data-leds"></div>
+        </div>
+        <div class="led-panel" style="flex: 1;">
+            <div class="led-title yellow">地址总线 (8位)</div>
+            <div class="led-grid" id="addr-leds"></div>
+        </div>
+    </div>
+</div>
+
+<div class="ram-monitor">
+    <h3>🔍 6116 RAM 内部监视器</h3>
+    <div style="font-size: 12px; margin-bottom: 10px; color:#808e9b;">(拔掉电源即清零)</div>
+    <div id="ram-list"></div>
+</div>
+
+<script>
+    const STATES = {
+        BOOT: 'CLASS SELECT',
+        ES_WAIT: 'ES--',
+        ES03: 'ES03',
+        CTL: 'CtL=--',
+        ADDR: 'Addr--',
+        DATA: 'dAtA',
+        PULSE: 'PULSE'
+    };
+
+    let currentState = 'BOOT';
+    let inputBuffer = '';
+    
+    let mode = 1; // 1 = 写 (Write), 2 = 读 (Read)
+    let currentAddr = 0;
+    let currentData = 0;
+    let ram = new Array(256).fill(0); // 8位地址 = 256个槽位，每个槽位存16位数据
+
+    // 初始化指示灯和监视器
+    const dataLeds = document.getElementById('data-leds');
+    for(let i=15; i>=0; i--) dataLeds.innerHTML += `<div class="led green" id="d-led-${i}"></div>`;
+    const addrLeds = document.getElementById('addr-leds');
+    for(let i=7; i>=0; i--) addrLeds.innerHTML += `<div class="led yellow" id="a-led-${i}"></div>`;
+    
+    function updateScreen(text) { document.getElementById('screen').innerText = text; }
+    
+    function renderLEDs(addr, data) {
+        for(let i=0; i<16; i++) {
+            const led = document.getElementById(`d-led-${i}`);
+            if((data >> i) & 1) led.classList.add('on'); else led.classList.remove('on');
+        }
+        for(let i=0; i<8; i++) {
+            const led = document.getElementById(`a-led-${i}`);
+            if((addr >> i) & 1) led.classList.add('on'); else led.classList.remove('on');
+        }
+    }
+
+    function renderRAM() {
+        const list = document.getElementById('ram-list');
+        list.innerHTML = '';
+        // 只显示被写过数据的槽位，或者当前地址
+        for(let i=0; i<256; i++) {
+            if(ram[i] !== 0 || i === currentAddr) {
+                const hexAddr = i.toString(16).toUpperCase().padStart(2, '0');
+                const hexData = ram[i].toString(16).toUpperCase().padStart(4, '0');
+                const activeClass = (i === currentAddr && currentState === 'PULSE') ? 'active' : '';
+                list.innerHTML += `<div class="ram-row ${activeClass}"><span class="addr">[${hexAddr}H]</span><span class="data">${hexData}</span></div>`;
+            }
+        }
+    }
+
+    function pressKey(char) {
+        if(currentState === 'ES_WAIT' && inputBuffer.length < 2) {
+            inputBuffer += char; updateScreen('ES--' + inputBuffer.padEnd(2, '_'));
+        } 
+        else if(currentState === 'CTL' && (char === '1' || char === '2')) {
+            inputBuffer = char; updateScreen('CtL= ' + char);
+        }
+        else if(currentState === 'ADDR' && inputBuffer.length < 2) {
+            inputBuffer += char; updateScreen('Addr ' + inputBuffer);
+        }
+        else if(currentState === 'DATA' && inputBuffer.length < 4) {
+            inputBuffer += char; updateScreen('dAtA ' + inputBuffer);
+        }
+    }
+
+    function pressFunc(func) {
+        if(func === 'RST') {
+            currentState = 'BOOT'; inputBuffer = ''; mode=1; currentAddr=0; currentData=0;
+            renderLEDs(0, 0); renderRAM(); updateScreen(STATES.BOOT); return;
+        }
+        if(func === 'CANCEL') {
+            if(currentState !== 'BOOT') { currentState = 'ES03'; inputBuffer = ''; updateScreen(STATES.ES03); }
+            return;
+        }
+        if(func === 'SEL' && currentState === 'BOOT') {
+            currentState = 'ES_WAIT'; inputBuffer = ''; updateScreen('ES--__'); return;
+        }
+        if(func === 'ENTER') {
+            switch(currentState) {
+                case 'ES_WAIT':
+                    if(inputBuffer === '03' || inputBuffer === '3') { currentState = 'ES03'; updateScreen(STATES.ES03); }
+                    break;
+                case 'ES03':
+                    currentState = 'CTL'; inputBuffer = ''; updateScreen(STATES.CTL); break;
+                case 'CTL':
+                    if(inputBuffer !== '') {
+                        mode = parseInt(inputBuffer); 
+                        currentState = 'ADDR'; inputBuffer = ''; updateScreen(STATES.ADDR);
+                    }
+                    break;
+                case 'ADDR':
+                    if(inputBuffer !== '') {
+                        currentAddr = parseInt(inputBuffer, 16);
+                        if(mode === 1) { // 写模式，需要继续输入Data
+                            currentState = 'DATA'; inputBuffer = ''; updateScreen(STATES.DATA);
+                        } else { // 读模式，直接去触发脉冲读数据
+                            currentState = 'PULSE'; updateScreen(STATES.PULSE);
+                        }
+                    }
+                    break;
+                case 'DATA':
+                    if(inputBuffer !== '') {
+                        currentData = parseInt(inputBuffer, 16);
+                        currentState = 'PULSE'; updateScreen(STATES.PULSE);
+                    }
+                    break;
+            }
+        }
+    }
+
+    function triggerPulse() {
+        if(currentState !== 'PULSE') return;
+        
+        if(mode === 1) { // 写数据 (Write)
+            ram[currentAddr] = currentData;
+            renderLEDs(currentAddr, currentData); // 总线亮起对应灯光
+        } else { // 读数据 (Read)
+            currentData = ram[currentAddr];
+            renderLEDs(currentAddr, currentData); // 总线亮起对应灯光
+        }
+        
+        renderRAM(); // 刷新上帝视角
+        
+        // 自动回到输入下一个地址的状态 (按照指导书逻辑)
+        currentState = 'ADDR'; 
+        inputBuffer = ''; 
+        updateScreen(STATES.ADDR);
+    }
+    
+    renderRAM();
+</script>
+
+</body>
+</html>
