@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>实验四：微程序控制器 (全物理拨码版)</title>
+    <style>
+        body { background: #0f172a; color: #f8fafc; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; padding: 20px; margin: 0;}
+        .container { background: #1e293b; padding: 25px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); max-width: 1200px; width: 100%; border: 2px solid #334155; display: flex; gap: 20px;}
+        
+        .main-board { flex: 3; }
+        .sidebar { flex: 1; background: #0b1120; border-radius: 8px; border: 1px solid #1e293b; padding: 15px; display: flex; flex-direction: column; max-height: 850px;}
+        
+        h2 { margin-top: 0; color: #38bdf8; text-align: center; border-bottom: 2px solid #334155; padding-bottom: 15px;}
+        
+        #conflict-warning { display: none; background: #ef4444; color: white; text-align: center; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 16px; margin-bottom: 20px; box-shadow: 0 0 20px #ef4444; animation: blink 0.3s infinite; }
+        @keyframes blink { from { opacity: 1; } to { opacity: 0.5; } }
+
+        .panel { background: #0f172a; padding: 20px; border-radius: 10px; border: 1px solid #334155; margin-bottom: 20px; }
+        .panel-title { color: #fcd34d; font-size: 15px; font-weight: bold; margin-bottom: 15px; text-align: center; }
+
+        /* 物理锁控制台 */
+        .hw-locks { display: flex; justify-content: space-evenly; background: #000; padding: 15px; border-radius: 8px; border: 1px solid #1e293b;}
+        .lock-btn { width: 60px; height: 35px; background: #475569; border: 2px solid #111; border-radius: 20px; cursor: pointer; position: relative; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5); transition: 0.2s;}
+        .lock-btn::after { content: 'OFF'; position: absolute; width: 30px; height: 30px; background: #94a3b8; border-radius: 50%; top: 1px; left: 2px; box-shadow: 1px 1px 3px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; font-size: 10px; color: #000; font-weight: bold; transition: 0.2s;}
+        .lock-btn.on { background: #10b981; }
+        .lock-btn.on::after { left: 25px; content: 'ON'; background: #fff; color: #10b981;}
+        .lock-wrapper { display: flex; flex-direction: column; align-items: center; gap: 8px;}
+        .lock-label { font-size: 12px; font-weight: bold; color: #cbd5e1;}
+
+        /* 拨码开关组 */
+        .dip-monitor { text-align: center; color: #38bdf8; font-family: monospace; font-size: 20px; font-weight: bold; margin-bottom: 15px; background: #000; padding: 8px; border-radius: 4px; border: 1px solid #1e293b;}
+        .dip-bank { display: flex; gap: 6px; justify-content: center; background: #000; padding: 15px; border-radius: 8px; border: 1px solid #222; flex-wrap: wrap;}
+        .dip-switch { display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
+        .dip-body { width: 22px; height: 45px; background: #334155; border: 2px solid #000; position: relative; border-radius: 3px; box-shadow: inset 0 0 8px rgba(0,0,0,0.8); }
+        .dip-body.on { background: #ef4444; } /* 24位开关红色 */
+        .dip-body.addr-on { background: #f59e0b; } /* 6位地址橙色 */
+        .dip-body.on::after, .dip-body.addr-on::after { top: auto; bottom: 0; border-radius: 0 0 2px 2px; }
+        .dip-body::after { content: ''; position: absolute; width: 100%; height: 50%; background: #fff; opacity: 0.35; top: 0; left: 0; border-radius: 2px 2px 0 0; }
+        .dip-label { font-size: 10px; color: #64748b; font-family: monospace; font-weight: bold;}
+        .dip-group-separator { width: 4px; background: #1e293b; margin: 0 2px; } /* 4位一组分隔线 */
+
+        /* 脉冲与 LED */
+        .pulse-btn { background-color: #f59e0b; color: #000; border: 2px solid #d97706; border-radius: 8px; padding: 15px; font-size: 18px; font-weight: bold; cursor: pointer; width: 100%; box-shadow: 0 5px 0 #d97706; transition: all 0.1s; margin-bottom: 20px; }
+        .pulse-btn:active { transform: translateY(5px); box-shadow: 0 0 0 #d97706; }
+
+        .led-panel { display: flex; justify-content: center; gap: 4px; background: #000; padding: 15px; border-radius: 8px; border: 1px solid #222;}
+        .led-box { display: flex; flex-direction: column; align-items: center; }
+        .led { width: 16px; height: 16px; border-radius: 50%; background: #1e293b; border: 1px solid #000; box-shadow: inset 0 2px 5px rgba(0,0,0,0.9); margin-bottom: 4px;}
+        .led.green.on { background: #22c55e; box-shadow: 0 0 12px #22c55e; }
+        .led.yellow.on { background: #facc15; box-shadow: 0 0 12px #facc15; }
+        .led.conflict { background: #ef4444; box-shadow: 0 0 15px #ef4444; animation: blink 0.2s infinite; }
+
+        /* 上帝视角 ROM */
+        .rom-header { color: #38bdf8; text-align: center; margin-bottom: 10px; border-bottom: 1px solid #1e293b; padding-bottom: 10px;}
+        .rom-list { overflow-y: auto; flex-grow: 1; font-family: monospace; font-size: 13px; }
+        .rom-row { display: flex; justify-content: space-between; padding: 6px 8px; border-bottom: 1px solid #1e293b; }
+        .rom-row .r-addr { color: #facc15; }
+        .rom-row .r-data { color: #22c55e; }
+        .rom-row.active { background: #1e40af; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="main-board">
+        <h2>🧠 实验四：微程序控制器 (纯物理拨码版)</h2>
+        
+        <div id="conflict-warning">🚨 致命错误：数据总线冲突！K3(芯片输出) 与 K4(拨码输入) 绝不能同时开启！</div>
+
+        <div class="panel">
+            <div class="panel-title">🔐 系统权限门禁 (K1 - K4)</div>
+            <div class="hw-locks">
+                <div class="lock-wrapper"><div class="lock-btn" id="btn-k1" onclick="toggleK(1)"></div><div class="lock-label">K1: 微地址锁</div></div>
+                <div class="lock-wrapper"><div class="lock-btn" id="btn-k2" onclick="toggleK(2)"></div><div class="lock-label">K2: ROM 写保护</div></div>
+                <div class="lock-wrapper"><div class="lock-btn" id="btn-k3" onclick="toggleK(3)"></div><div class="lock-label">K3: ROM 输出端</div></div>
+                <div class="lock-wrapper"><div class="lock-btn" id="btn-k4" onclick="toggleK(4)"></div><div class="lock-label">K4: 24位输入开关</div></div>
+            </div>
+            <div style="text-align:center; font-size:12px; color:#64748b; margin-top:10px;">
+                💡 写入代码规范：K1关, K2开, K3关, K4开 &nbsp;&nbsp;|&nbsp;&nbsp; 读出校验规范：K1关, K2关, K3开, K4关
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title">🎛️ 物理拨码输入台</div>
+            
+            <div style="margin-bottom: 20px;">
+                <div class="dip-monitor">微地址 (uA5-uA0): <span id="addr-hex" style="color:#facc15;">000000</span> (Bin)</div>
+                <div class="dip-bank" id="addr-dip-bank"></div>
+            </div>
+
+            <div>
+                <div class="dip-monitor">微代码 (MS24-MS1): <span id="data-hex" style="color:#ef4444;">000000</span> (Hex)</div>
+                <div class="dip-bank" id="data-dip-bank"></div>
+            </div>
+        </div>
+
+        <button class="pulse-btn" id="pulseBtn" onclick="triggerPulse()">⚡ 按下脉冲触发器 (执行读/写)</button>
+
+        <div class="panel">
+            <div class="panel-title">👁️ 系统总线监视面板</div>
+            <div style="text-align:center; color:#facc15; font-size:12px; margin-bottom:5px;">🟨 微地址总线 (跟随拨码)</div>
+            <div class="led-panel" id="addr-leds" style="margin-bottom: 15px;"></div>
+            
+            <div style="text-align:center; color:#22c55e; font-size:12px; margin-bottom:5px;">🟩 24位微指令总线 (受 K3 或 K4 控制)</div>
+            <div class="led-panel" id="data-leds"></div>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <h3 class="rom-header">📖 2816 控制存储器<br><span style="font-size:11px; color:#64748b;">(内部真实数据映射)</span></h3>
+        <div class="rom-list" id="rom-list"></div>
+    </div>
+</div>
+
+<script>
+    // --- 状态数据 ---
+    let K = { 1: false, 2: false, 3: false, 4: false }; // 门禁开关
+    let dip_addr = Array(6).fill(0); // 6位地址拨码
+    let dip_data = Array(24).fill(0); // 24位数据拨码
+    let ROM = Array(64).fill("000000"); // 64行x24位存储器 (存Hex字符串)
+    
+    let current_addr_val = 0; // 十进制地址
+    let bus_data_val = 0; // 内部总线瞬时值
+    let bus_conflict = false;
+
+    // --- UI 生成 ---
+    function toggleK(num) {
+        K[num] = !K[num];
+        document.getElementById('btn-k' + num).className = K[num] ? 'lock-btn on' : 'lock-btn';
+        resolveBus(); // 锁状态改变，实时刷新总线状态
+    }
+
+    // 生成 6 位地址拨码
+    const addrBank = document.getElementById('addr-dip-bank');
+    for(let i=0; i<6; i++) {
+        const div = document.createElement('div'); div.className = 'dip-switch';
+        div.innerHTML = `<div class="dip-body" id="dip-a${5-i}"></div><div class="dip-label">uA${5-i}</div>`;
+        div.onclick = () => {
+            dip_addr[i] = 1 - dip_addr[i];
+            div.querySelector('.dip-body').className = dip_addr[i] ? 'dip-body addr-on' : 'dip-body';
+            updateDipHex();
+        };
+        addrBank.appendChild(div);
+    }
+
+    // 生成 24 位数据拨码 (4个一组加分隔线)
+    const dataBank = document.getElementById('data-dip-bank');
+    for(let i=0; i<24; i++) {
+        const div = document.createElement('div'); div.className = 'dip-switch';
+        div.innerHTML = `<div class="dip-body" id="dip-d${23-i}"></div><div class="dip-label" style="font-size:9px;">M${24-i}</div>`;
+        div.onclick = () => {
+            dip_data[i] = 1 - dip_data[i];
+            div.querySelector('.dip-body').className = dip_data[i] ? 'dip-body on' : 'dip-body';
+            updateDipHex();
+        };
+        dataBank.appendChild(div);
+        if((i+1)%4 === 0 && i !== 23) {
+            const sep = document.createElement('div'); sep.className = 'dip-group-separator'; dataBank.appendChild(sep);
+        }
+    }
+
+    // 生成 LED 灯
+    const aLeds = document.getElementById('addr-leds');
+    for(let i=5; i>=0; i--) aLeds.innerHTML += `<div class="led-box"><div class="led yellow" id="led-a${i}"></div><div style="font-size:9px; color:#64748b;">uA${i}</div></div>`;
+    
+    const dLeds = document.getElementById('data-leds');
+    for(let i=23; i>=0; i--) dLeds.innerHTML += `<div class="led-box"><div class="led green" id="led-d${i}"></div><div style="font-size:8px; color:#64748b;">${i+1}</div></div>`;
+    
+    // --- 核心逻辑引擎 ---
+    function updateDipHex() {
+        // 地址转二进制串
+        let aStr = dip_addr.join('');
+        document.getElementById('addr-hex').innerText = aStr;
+        current_addr_val = parseInt(aStr, 2);
+
+        // 数据转 16进制串
+        let dStr = "";
+        for(let i=0; i<6; i++) { // 6个Hex字符
+            let nibble = (dip_data[i*4]<<3) | (dip_data[i*4+1]<<2) | (dip_data[i*4+2]<<1) | dip_data[i*4+3];
+            dStr += nibble.toString(16).toUpperCase();
+        }
+        document.getElementById('data-hex').innerText = dStr;
+        
+        resolveBus(); // 拨码改变，刷新总线
+    }
+
+    function resolveBus() {
+        // 核心冲突检测：如果 2816允许输出(K3=ON) 且 物理拨码允许输入(K4=ON)，总线短路！
+        bus_conflict = (K[3] && K[4]);
+        
+        const warn = document.getElementById('conflict-warning');
+        warn.style.display = bus_conflict ? 'block' : 'none';
+
+        // 决定总线上到底显示什么
+        let activeDataHex = "000000"; 
+        
+        if (bus_conflict) {
+            activeDataHex = "ERROR";
+        } else if (K[4] && !K[3]) {
+            // K4开，K3关：总线被物理拨码接管
+            activeDataHex = document.getElementById('data-hex').innerText;
+        } else if (K[3] && !K[4]) {
+            // K3开，K4关：总线被 ROM 芯片吐出的数据接管
+            activeDataHex = ROM[current_addr_val];
+        } else {
+            // K3和K4都关：高阻态，全灭
+            activeDataHex = "000000";
+        }
+
+        renderLEDs(activeDataHex);
+        renderROM();
+    }
+
+    function triggerPulse() {
+        if(bus_conflict) return; // 冲突时锁死操作
+        
+        // 只有在 K2=ON (允许写) 且 K3=OFF (不输出) 且 K4=ON (允许拨码输入) 时，才能写入 ROM
+        if (K[2] && !K[3] && K[4]) {
+            let writeData = document.getElementById('data-hex').innerText;
+            ROM[current_addr_val] = writeData;
+        }
+        
+        // 如果是读模式 (K2=OFF, K3=ON, K4=OFF)，其实不需要脉冲也会实时显示在总线上，
+        // 但按脉冲可以验证当前的读取状态。
+        
+        resolveBus();
+    }
+
+    function renderLEDs(activeDataHex) {
+        // 渲染 6位地址灯 (总是跟随拨码)
+        for(let i=0; i<6; i++) {
+            const led = document.getElementById(`led-a${5-i}`);
+            if(dip_addr[i]) led.classList.add('on'); else led.classList.remove('on');
+        }
+
+        // 渲染 24位数据灯
+        for(let i=0; i<24; i++) {
+            const led = document.getElementById(`led-d${23-i}`);
+            led.className = 'led green'; // reset
+            if(bus_conflict) {
+                led.classList.add('conflict');
+            } else if (activeDataHex !== "000000") {
+                // 将 Hex 还原为二进制点亮 LED
+                let binStr = parseInt(activeDataHex, 16).toString(2).padStart(24, '0');
+                if(binStr[i] === '1') led.classList.add('on');
+            }
+        }
+    }
+
+    function renderROM() {
+        const list = document.getElementById('rom-list');
+        list.innerHTML = '';
+        for(let i=0; i<64; i++) {
+            const binAddr = i.toString(2).padStart(6, '0');
+            const data = ROM[i];
+            if (data !== "000000" || i === current_addr_val) {
+                const active = (i === current_addr_val) ? 'active' : '';
+                list.innerHTML += `<div class="rom-row ${active}"><span class="r-addr">[${binAddr}]</span><span class="r-data">${data}</span></div>`;
+            }
+        }
+    }
+
+    // 初始化
+    updateDipHex();
+</script>
+
+</body>
+</html>
