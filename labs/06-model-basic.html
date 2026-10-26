@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>实验六：简单模型机组成原理 (整机系统)</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; justify-content: center; gap: 20px; }
+        .container { background: #1e293b; padding: 25px; border-radius: 12px; box-shadow: 0 15px 40px rgba(0,0,0,0.8); max-width: 900px; width: 100%; border: 2px solid #334155; display: flex; gap: 20px;}
+        
+        .left-panel { flex: 1; display: flex; flex-direction: column; gap: 15px; }
+        .right-panel { flex: 1.2; display: flex; flex-direction: column; gap: 15px; }
+
+        h2 { margin: 0 0 10px 0; color: #38bdf8; text-align: center; border-bottom: 2px solid #334155; padding-bottom: 10px; grid-column: 1 / -1;}
+        
+        /* 屏幕与键盘 */
+        .screen-bezel { background: #000; padding: 15px; border-radius: 8px; border: 4px inset #334155; }
+        .digital-screen { font-family: 'Courier New', monospace; font-size: 28px; font-weight: bold; color: #ef4444; text-align: center; text-shadow: 0 0 10px #ef4444; letter-spacing: 2px; height: 35px; display: flex; align-items: center; justify-content: center; }
+
+        .keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .key { background: #e2e8f0; color: #0f172a; border: none; border-radius: 4px; padding: 12px 0; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 0 #94a3b8; transition: 0.1s; }
+        .key:active { transform: translateY(4px); box-shadow: 0 0 0 #94a3b8; }
+        .key.func { background: #f59e0b; color: #fff; box-shadow: 0 4px 0 #b45309; font-size: 12px;}
+        .key.confirm { background: #10b981; color: #fff; box-shadow: 0 4px 0 #047857;}
+
+        .pulse-btn { background: #38bdf8; color: #fff; border: none; border-radius: 6px; padding: 15px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 5px 0 #0284c7; width: 100%; }
+        .pulse-btn:active { transform: translateY(5px); box-shadow: 0 0 0 #0284c7; }
+
+        /* CPU 寄存器监控区 */
+        .cpu-monitor { background: #020617; padding: 15px; border-radius: 8px; border: 1px solid #1e293b; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;}
+        .reg-box { background: #1e293b; padding: 10px; border-radius: 6px; text-align: center; border: 1px solid #334155;}
+        .reg-title { font-size: 11px; color: #94a3b8; margin-bottom: 5px; }
+        .reg-val { font-family: monospace; font-size: 20px; color: #22c55e; font-weight: bold; }
+        
+        .disp-box { grid-column: 1 / -1; background: #000; border: 2px solid #334155; padding: 15px; text-align: center; border-radius: 6px;}
+        .disp-val { font-family: 'Courier New', monospace; font-size: 36px; color: #ef4444; font-weight: bold; text-shadow: 0 0 15px #ef4444; letter-spacing: 5px;}
+
+        /* 指示灯与状态流 */
+        .status-panel { background: #020617; padding: 15px; border-radius: 8px; border: 1px solid #1e293b; flex-grow: 1;}
+        .status-title { color: #facc15; font-size: 13px; text-align: center; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 5px;}
+        .flow-text { font-family: monospace; font-size: 13px; color: #cbd5e1; line-height: 1.6; }
+        .flow-highlight { color: #38bdf8; font-weight: bold; }
+        
+        .led-row { display: flex; justify-content: center; gap: 5px; margin-bottom: 10px;}
+        .led { width: 12px; height: 12px; border-radius: 50%; background: #1e293b; border: 1px solid #000; box-shadow: inset 0 2px 4px rgba(0,0,0,0.8);}
+        .led.on { background: #facc15; box-shadow: 0 0 10px #facc15; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>💻 实验六：简单模型机整机系统</h2>
+
+    <div class="left-panel">
+        <div class="screen-bezel"><div class="digital-screen" id="screen">CLASS SELECT</div></div>
+
+        <div class="keypad">
+            <button class="key" onclick="pressKey('C')">C</button> <button class="key" onclick="pressKey('D')">D</button>
+            <button class="key" onclick="pressKey('E')">E</button> <button class="key" onclick="pressKey('F')">F</button>
+            <button class="key" onclick="pressKey('8')">8</button> <button class="key" onclick="pressKey('9')">9</button>
+            <button class="key" onclick="pressKey('A')">A</button> <button class="key" onclick="pressKey('B')">B</button>
+            <button class="key" onclick="pressKey('4')">4</button> <button class="key" onclick="pressKey('5')">5</button>
+            <button class="key" onclick="pressKey('6')">6</button> <button class="key" onclick="pressKey('7')">7</button>
+            <button class="key" onclick="pressKey('0')">0</button> <button class="key" onclick="pressKey('1')">1</button>
+            <button class="key" onclick="pressKey('2')">2</button> <button class="key" onclick="pressKey('3')">3</button>
+            
+            <button class="key func" onclick="pressFunc('RST')">RESET</button>
+            <button class="key func" onclick="pressFunc('SEL')">实验选择</button>
+            <button class="key func" onclick="pressFunc('CANCEL')">取消</button>
+            <button class="key confirm" onclick="pressFunc('ENTER')">确认</button>
+        </div>
+
+        <button class="pulse-btn" id="pulse-btn" onclick="triggerPulse()">⚡ 按下脉冲 (单步运行)</button>
+    </div>
+
+    <div class="right-panel">
+        <div class="cpu-monitor">
+            <div class="reg-box"><div class="reg-title">程序计数器 (PC)</div><div class="reg-val" id="reg-pc">00 H</div></div>
+            <div class="reg-box"><div class="reg-title">指令寄存器 (IR)</div><div class="reg-val" id="reg-ir" style="color:#38bdf8;">0000 H</div></div>
+            <div class="reg-box"><div class="reg-title">数据寄存器 (AX)</div><div class="reg-val" id="reg-ax">0000 H</div></div>
+            <div class="reg-box"><div class="reg-title">数据寄存器 (BX)</div><div class="reg-val" id="reg-bx">0000 H</div></div>
+            <div class="disp-box"><div class="reg-title" style="color:#ef4444;">输出设备 (数码管)</div><div class="disp-val" id="disp-tube">----</div></div>
+        </div>
+
+        <div class="status-panel">
+            <div class="status-title">🧠 CPU 自动执行流水线监控</div>
+            <div style="font-size:11px; text-align:center; color:#64748b; margin-bottom:5px;">当前微地址 (uA5-uA0)</div>
+            <div class="led-row" id="uaddr-leds"></div>
+            <div class="flow-text" id="flow-log">
+                等待启动...<br>
+                (系统已为您预置表6-3微程序与表6-4机器指令)
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 核心状态 ---
+    let state = 'BOOT';
+    let inputBuffer = '';
+    
+    // CPU 寄存器
+    let PC = 0, IR = 0, AX = 0, BX = 0, DISP = null;
+    let uPC = 0; // 微程序计数器
+    
+    // 预置表 6-4 的机器指令到 RAM (6116)
+    let RAM = [
+        0x0000, // 00: IN AX
+        0x0021, // 01: MOV BX, imm
+        0x0001, // 02: imm = 01H
+        0x0010, // 03: ADD AX, BX
+        0x0030, // 04: OUT DISP, AX
+        0x0040, // 05: JMP imm
+        0x0000  // 06: imm = 00H
+    ];
+
+    // 初始化微地址指示灯
+    const uaddrLeds = document.getElementById('uaddr-leds');
+    for(let i=5; i>=0; i--) uaddrLeds.innerHTML += `<div class="led" id="ua-${i}"></div>`;
+
+    function updateScreen(text) { document.getElementById('screen').innerText = text; }
+    function logFlow(text) { document.getElementById('flow-log').innerHTML = text; }
+
+    function updateRegisters() {
+        document.getElementById('reg-pc').innerText = PC.toString(16).toUpperCase().padStart(2, '0') + ' H';
+        document.getElementById('reg-ir').innerText = IR.toString(16).toUpperCase().padStart(4, '0') + ' H';
+        document.getElementById('reg-ax').innerText = AX.toString(16).toUpperCase().padStart(4, '0') + ' H';
+        document.getElementById('reg-bx').innerText = BX.toString(16).toUpperCase().padStart(4, '0') + ' H';
+        document.getElementById('disp-tube').innerText = DISP !== null ? DISP.toString(16).toUpperCase().padStart(4, '0') : '----';
+        
+        let uStr = uPC.toString(2).padStart(6, '0');
+        for(let i=0; i<6; i++) {
+            let led = document.getElementById(`ua-${5-i}`);
+            if(uStr[i] === '1') led.classList.add('on'); else led.classList.remove('on');
+        }
+    }
+
+    // --- 键盘逻辑 ---
+    function pressKey(char) {
+        if(state === 'ES_WAIT' && inputBuffer.length < 2) {
+            inputBuffer += char; updateScreen('ES--' + inputBuffer.padEnd(2, '_'));
+        } else if(state === 'CTL_MENU' && ['1','2'].includes(char)) {
+            inputBuffer = char; updateScreen('CtL' + char + '=_'); state = 'CTL' + char;
+        } else if(state === 'CTL1' && char === '1') {
+            updateScreen('CtL1_1'); // 假装支持写微码
+        } else if(state === 'CTL2' && ['1','2','3'].includes(char)) {
+            updateScreen('CtL2_' + char); inputBuffer = char; // 3 是运行
+        } else if(state === 'DATA_IN' && inputBuffer.length < 4) {
+            inputBuffer += char; updateScreen('dAtA ' + inputBuffer);
+        }
+    }
+
+    function pressFunc(func) {
+        if(func === 'RST') {
+            state = 'BOOT'; inputBuffer = ''; uPC=0; PC=0; AX=0; BX=0; IR=0; DISP=null;
+            updateRegisters(); updateScreen('CLASS SELECT'); logFlow('系统已复位。'); return;
+        }
+        if(func === 'CANCEL') {
+            if (state.startsWith('CTL1')) { state = 'CTL_MENU'; updateScreen('CtL2=_'); }
+            else if (state.startsWith('CTL2')) { state = 'CTL_MENU'; updateScreen('CtL1=_'); }
+            return;
+        }
+        if(func === 'SEL' && state === 'BOOT') { state = 'ES_WAIT'; inputBuffer = ''; updateScreen('ES--__'); return; }
+        
+        if(func === 'ENTER') {
+            switch(state) {
+                case 'ES_WAIT':
+                    if(inputBuffer === '06' || inputBuffer === '6') { state = 'CTL_MENU'; updateScreen('CtL1=_'); } break;
+                case 'CTL2':
+                    if(inputBuffer === '3') { state = 'RUN_MODE'; updateScreen('run CodE'); logFlow('✅ 准备就绪！请连续点击【按下脉冲】开始取指执行。'); updateRegisters();} 
+                    break;
+                case 'DATA_IN':
+                    if(inputBuffer !== '') {
+                        AX = parseInt(inputBuffer, 16); // 存入AX
+                        state = 'RUN_MODE'; updateScreen('run CodE');
+                        logFlow(`📥 收到输入数据: <span class="flow-highlight">${AX.toString(16).toUpperCase()}H</span>，已送入 AX。<br>▶ 请继续按脉冲运行...`);
+                        updateRegisters();
+                    }
+                    break;
+            }
+        }
+    }
+
+    // --- CPU 微指令引擎 (硬核复刻图6-2运行流程) ---
+    function triggerPulse() {
+        if(state !== 'RUN_MODE') return;
+
+        // 模拟图 6-2 微程序流程图的流转
+        switch(uPC) {
+            case parseInt('000000', 2): // 00H
+                uPC = parseInt('000001', 2); // 01H
+                logFlow(`[取指周期] 微地址 00 -> 01<br>🔹 <span class="flow-highlight">PC -> AR</span> (PC=${PC} 送入地址寄存器)<br>🔹 PC = PC + 1`);
+                PC++;
+                break;
+            case parseInt('000001', 2): // 01H
+                uPC = parseInt('000010', 2); // 02H
+                IR = RAM[PC-1];
+                logFlow(`[取指周期] 微地址 01 -> 02<br>🔹 <span class="flow-highlight">RAM -> IR</span> (取出指令 ${IR.toString(16).toUpperCase()}H 送入指令寄存器)`);
+                break;
+            case parseInt('000010', 2): // 02H
+                // P1 测试 (译码)
+                logFlow(`[译码周期] 微地址 02 -> 31 -> 分支<br>🔹 正在对指令 <span class="flow-highlight">${IR.toString(16).toUpperCase()}H</span> 进行 P1 测试译码...`);
+                let highByte = (IR >> 8) & 0xFF;
+                if(highByte === 0x00) uPC = parseInt('001000', 2);      // IN: 08H
+                else if(highByte === 0x20) uPC = parseInt('001010', 2); // MOV (21H其实是20系): 0AH (Octal 12)
+                else if(highByte === 0x10) uPC = parseInt('001001', 2); // ADD: 09H (Octal 11)
+                else if(highByte === 0x30) uPC = parseInt('001011', 2); // OUT: 0BH (Octal 13)
+                else if(highByte === 0x40) uPC = parseInt('001100', 2); // JMP: 0CH (Octal 14)
+                break;
+
+            // --- IN AX 执行 ---
+            case parseInt('001000', 2): // 08H (Octal 10)
+                state = 'DATA_IN'; inputBuffer = ''; updateScreen('dAtA');
+                logFlow(`[执行周期: IN] 微地址 10<br>🔴 <span style="color:#ef4444; font-weight:bold;">请在键盘输入 4 位数据 (如 1234)，按【确认】键送入AX！</span>`);
+                uPC = parseInt('000000', 2); // 执行完回取指
+                break;
+
+            // --- ADD AX, BX 执行 ---
+            case parseInt('001001', 2): // 09H (Octal 11)
+                uPC = parseInt('000110', 2); // 06H
+                logFlow(`[执行周期: ADD] 微地址 11 -> 06<br>🔹 准备将 AX 和 BX 送入加法器运算...`);
+                break;
+            case parseInt('000110', 2): // 06H
+                AX = (AX + BX) & 0xFFFF;
+                uPC = parseInt('000000', 2);
+                logFlow(`[执行周期: ADD] 微地址 06<br>🔹 <span class="flow-highlight">LT1 + LT2 -> AX</span> (运算完成，AX=${AX.toString(16).toUpperCase()}H)`);
+                break;
+
+            // --- MOV BX, imm 执行 ---
+            case parseInt('001010', 2): // 0AH (Octal 12)
+                uPC = parseInt('000011', 2); // 03H
+                logFlow(`[执行周期: MOV] 微地址 12 -> 03<br>🔹 <span class="flow-highlight">PC -> AR</span> (准备取操作数)<br>🔹 PC = PC + 1`);
+                PC++;
+                break;
+            case parseInt('000011', 2): // 03H
+                uPC = parseInt('000111', 2); // 07H
+                logFlow(`[执行周期: MOV] 微地址 03 -> 07<br>🔹 正在从 RAM 读取立即数...`);
+                break;
+            case parseInt('000111', 2): // 07H
+                BX = RAM[PC-1];
+                uPC = parseInt('000000', 2);
+                logFlow(`[执行周期: MOV] 微地址 07<br>🔹 <span class="flow-highlight">RAM -> BX</span> (立即数 ${BX.toString(16).toUpperCase()}H 装入 BX)`);
+                break;
+
+            // --- OUT DISP, AX 执行 ---
+            case parseInt('001011', 2): // 0BH (Octal 13)
+                DISP = AX;
+                uPC = parseInt('000000', 2);
+                logFlow(`[执行周期: OUT] 微地址 13<br>🌟 <span style="color:#ef4444; font-weight:bold;">AX -> LED</span> (结果 ${DISP.toString(16).toUpperCase()}H 已打入数码管！)`);
+                break;
+
+            // --- JMP imm 执行 ---
+            case parseInt('001100', 2): // 0CH (Octal 14)
+                uPC = parseInt('001101', 2); // 0DH (Octal 15)
+                logFlow(`[执行周期: JMP] 微地址 14 -> 15<br>🔹 <span class="flow-highlight">PC -> AR</span> (准备取跳转目标地址)<br>🔹 PC = PC + 1`);
+                PC++;
+                break;
+            case parseInt('001101', 2): // 0DH (Octal 15)
+                PC = RAM[PC-1]; // 跳转
+                uPC = parseInt('000000', 2);
+                logFlow(`[执行周期: JMP] 微地址 15<br>🔁 <span class="flow-highlight">RAM -> PC</span> (程序指针跳回 ${PC.toString(16).toUpperCase()}H，循环开始！)`);
+                break;
+        }
+        updateRegisters();
+    }
+</script>
+
+</body>
+</html>
