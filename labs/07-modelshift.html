@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <title>实验七：带移位运算的模型机 (完美修复版)</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 10px; display: flex; justify-content: center; }
+        .container { background: #1e293b; padding: 20px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); width: 100%; max-width: 1050px; border: 2px solid #334155; box-sizing: border-box; }
+        
+        .layout-grid { display: flex; flex-wrap: wrap; gap: 20px; }
+        .left-panel { flex: 1 1 320px; display: flex; flex-direction: column; gap: 15px; }
+        .right-panel { flex: 1.5 1 450px; display: flex; flex-direction: column; gap: 15px; }
+
+        h2 { margin: 0 0 10px 0; color: #10b981; text-align: center; border-bottom: 2px solid #334155; padding-bottom: 10px; font-size: clamp(18px, 4vw, 22px);}
+        
+        /* 屏幕与键盘 */
+        .screen-bezel { background: #000; padding: 15px; border-radius: 8px; border: 4px inset #334155; }
+        .digital-screen { font-family: 'Courier New', monospace; font-size: clamp(24px, 6vw, 32px); font-weight: bold; color: #ef4444; text-align: center; text-shadow: 0 0 10px #ef4444; letter-spacing: 2px; height: 40px; display: flex; align-items: center; justify-content: center; }
+
+        .keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .key { background: #e2e8f0; color: #0f172a; border: none; border-radius: 6px; padding: 15px 0; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 0 #94a3b8; transition: 0.1s; -webkit-tap-highlight-color: transparent;}
+        .key:active { transform: translateY(4px); box-shadow: 0 0 0 #94a3b8; }
+        .key.func { background: #f59e0b; color: #fff; box-shadow: 0 4px 0 #b45309; font-size: clamp(10px, 3vw, 13px);}
+        .key.confirm { background: #10b981; color: #fff; box-shadow: 0 4px 0 #047857;}
+
+        .pulse-btn { background: #38bdf8; color: #fff; border: none; border-radius: 8px; padding: 15px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 5px 0 #0284c7; width: 100%; transition: 0.1s; -webkit-tap-highlight-color: transparent;}
+        .pulse-btn:active { transform: translateY(5px); box-shadow: 0 0 0 #0284c7; }
+        .pulse-btn.run { background: #8b5cf6; box-shadow: 0 5px 0 #581c87; margin-top: 5px;}
+
+        /* CPU 内部监视器 */
+        .cpu-monitor { background: #020617; padding: 15px; border-radius: 8px; border: 1px solid #1e293b; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px;}
+        .reg-box { background: #1e293b; padding: 10px; border-radius: 6px; text-align: center; border: 1px solid #334155; transition: 0.2s;}
+        .reg-box.active { border-color: #38bdf8; box-shadow: 0 0 12px rgba(56, 189, 248, 0.4); }
+        .reg-box.shift { border-color: #a855f7; box-shadow: 0 0 12px rgba(168, 85, 247, 0.4); }
+        .reg-title { font-size: 11px; color: #94a3b8; margin-bottom: 5px; }
+        .reg-val { font-family: monospace; font-size: 20px; color: #22c55e; font-weight: bold; }
+        .reg-val.highlight { color: #a855f7; }
+        
+        .disp-box { grid-column: 1 / -1; background: #000; border: 2px solid #334155; padding: 15px; text-align: center; border-radius: 6px;}
+        .disp-val { font-family: 'Courier New', monospace; font-size: clamp(28px, 8vw, 36px); color: #ef4444; font-weight: bold; text-shadow: 0 0 15px #ef4444; letter-spacing: 5px;}
+
+        /* 流水线面板 */
+        .status-panel { background: #020617; padding: 15px; border-radius: 8px; border: 1px solid #1e293b; flex-grow: 1; display: flex; flex-direction: column;}
+        .status-title { color: #facc15; font-size: 14px; text-align: center; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 5px;}
+        .flow-text { font-family: monospace; font-size: 13px; color: #cbd5e1; line-height: 1.6; flex-grow: 1; height: 220px; overflow-y: auto;}
+        .flow-highlight { color: #38bdf8; font-weight: bold; }
+        .flow-warn { color: #ef4444; font-weight: bold; }
+        .flow-shift { color: #a855f7; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🚀 实验七：带移位运算的模型机 (完美修复版)</h2>
+    
+    <div class="layout-grid">
+        <div class="left-panel">
+            <div class="screen-bezel"><div class="digital-screen" id="screen">CLASS SELECT</div></div>
+            <div class="keypad">
+                <button class="key" onclick="pressKey('C')">C</button> <button class="key" onclick="pressKey('D')">D</button>
+                <button class="key" onclick="pressKey('E')">E</button> <button class="key" onclick="pressKey('F')">F</button>
+                <button class="key" onclick="pressKey('8')">8</button> <button class="key" onclick="pressKey('9')">9</button>
+                <button class="key" onclick="pressKey('A')">A</button> <button class="key" onclick="pressKey('B')">B</button>
+                <button class="key" onclick="pressKey('4')">4</button> <button class="key" onclick="pressKey('5')">5</button>
+                <button class="key" onclick="pressKey('6')">6</button> <button class="key" onclick="pressKey('7')">7</button>
+                <button class="key" onclick="pressKey('0')">0</button> <button class="key" onclick="pressKey('1')">1</button>
+                <button class="key" onclick="pressKey('2')">2</button> <button class="key" onclick="pressKey('3')">3</button>
+                
+                <button class="key func" onclick="pressFunc('RST')">RESET</button>
+                <button class="key func" onclick="pressFunc('SEL')">实验选择</button>
+                <button class="key func" onclick="pressFunc('CANCEL')">取消</button>
+                <button class="key confirm" onclick="pressFunc('ENTER')">确认</button>
+            </div>
+            
+            <button class="pulse-btn" onclick="triggerPulse()">⚡ 单步脉冲 (STEP)</button>
+            <button class="pulse-btn run" id="run-btn" onclick="toggleAutoRun()">🔄 全速运行 (RUN)</button>
+        </div>
+
+        <div class="right-panel">
+            <div class="cpu-monitor">
+                <div class="reg-box" id="box-pc"><div class="reg-title">程序计数器 (PC)</div><div class="reg-val" id="reg-pc">00 H</div></div>
+                <div class="reg-box" id="box-ir"><div class="reg-title">指令寄存器 (IR)</div><div class="reg-val" id="reg-ir" style="color:#38bdf8;">0000 H</div></div>
+                <div class="reg-box" id="box-ax"><div class="reg-title">累加器 (AX)</div><div class="reg-val" id="reg-ax">0000 H</div></div>
+                <div class="reg-box" id="box-bx"><div class="reg-title">寄存器 (BX)</div><div class="reg-val" id="reg-bx">0000 H</div></div>
+                
+                <div class="reg-box shift" id="box-sreg"><div class="reg-title">🚀 移位器 (SREG)</div><div class="reg-val highlight" id="reg-sreg">0000 H</div></div>
+                
+                <div class="disp-box"><div class="reg-title" style="color:#ef4444;">输出设备 (LED数码管)</div><div class="disp-val" id="disp-tube">----</div></div>
+            </div>
+
+            <div class="status-panel">
+                <div class="status-title">🧠 CPU 微指令流水线 (当前状态: <span id="uaddr-state" style="color:#fff;">HALT</span>)</div>
+                <div class="flow-text" id="flow-log">
+                    等待系统启动...<br>
+                    (已为您烧录表 7-4 毕业设计代码)
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 核心状态与存储 ---
+    let state = 'BOOT';
+    let inputBuffer = '';
+    
+    let PC = 0, IR = 0, AX = 0, BX = 0, SREG = 0, DISP = null;
+    let uState = 'FETCH1'; 
+    let autoRunInterval = null;
+    
+    // 表 7-4 机器指令
+    let RAM = [
+        0x0000, // 00: IN AX (OP=00H)
+        0x0021, // 01: MOV BX, 01H (OP=21H)
+        0x0001, // 02: 立即数 01H
+        0x0050, // 03: ROL AX (OP=50H)
+        0x0010, // 04: ADD AX, BX (OP=10H)
+        0x0060, // 05: ROR AX (OP=60H)
+        0x0030, // 06: OUT DISP, AX (OP=30H)
+        0x0040, // 07: JMP 00H (OP=40H)
+        0x0000  // 08: 目标地址 00H
+    ];
+
+    function updateScreen(text) { document.getElementById('screen').innerText = text; }
+    function logFlow(text) { 
+        const logBox = document.getElementById('flow-log');
+        logBox.innerHTML += `<div>${text}</div>`;
+        logBox.scrollTop = logBox.scrollHeight;
+    }
+    
+    // UI 高亮辅助
+    function flashBox(id) {
+        document.getElementById(id).classList.add('active');
+        setTimeout(() => document.getElementById(id).classList.remove('active'), 300);
+    }
+
+    function updateRegisters() {
+        document.getElementById('reg-pc').innerText = PC.toString(16).toUpperCase().padStart(2, '0') + ' H';
+        document.getElementById('reg-ir').innerText = IR.toString(16).toUpperCase().padStart(4, '0') + ' H';
+        document.getElementById('reg-ax').innerText = AX.toString(16).toUpperCase().padStart(4, '0') + ' H';
+        document.getElementById('reg-bx').innerText = BX.toString(16).toUpperCase().padStart(4, '0') + ' H';
+        document.getElementById('reg-sreg').innerText = SREG.toString(16).toUpperCase().padStart(4, '0') + ' H';
+        document.getElementById('disp-tube').innerText = DISP !== null ? DISP.toString(16).toUpperCase().padStart(4, '0') : '----';
+        document.getElementById('uaddr-state').innerText = uState;
+    }
+
+    // --- 键盘交互状态机修复版 ---
+    function pressKey(char) {
+        if(state === 'ES_WAIT' && inputBuffer.length < 2) {
+            inputBuffer += char; 
+            updateScreen('ES--' + inputBuffer.padEnd(2, '_'));
+        } 
+        else if(state === 'CTL1_MENU') {
+            if(['1','2'].includes(char)) {
+                inputBuffer = char; 
+                updateScreen('CtL1_' + char); 
+                state = 'CTL1_READY';
+            }
+        } 
+        else if(state === 'CTL2_MENU') {
+            // 在 CtL2 菜单下，允许输入 1, 2, 3
+            if(['1','2','3'].includes(char)) {
+                inputBuffer = char; 
+                updateScreen('CtL2_' + char); 
+                state = 'CTL2_READY';
+            }
+        } 
+        else if(state === 'DATA_IN' && inputBuffer.length < 4) {
+            inputBuffer += char; 
+            updateScreen('dAtA ' + inputBuffer);
+        }
+    }
+
+    function pressFunc(func) {
+        if(func === 'RST') {
+            stopAutoRun();
+            state = 'BOOT'; inputBuffer = ''; uState='FETCH1'; PC=0; AX=0; BX=0; SREG=0; IR=0; DISP=null;
+            updateRegisters(); updateScreen('CLASS SELECT'); 
+            document.getElementById('flow-log').innerHTML = '🔄 系统已复位。'; return;
+        }
+        
+        if(func === 'CANCEL') { 
+            stopAutoRun(); 
+            // 修复：从 CtL1 取消时，进入独立的 CTL2_MENU 状态
+            if(state === 'CTL1_MENU' || state === 'CTL1_READY') { 
+                state = 'CTL2_MENU'; 
+                inputBuffer = '';
+                updateScreen('CtL2=_'); 
+            } 
+            return; 
+        }
+        
+        if(func === 'SEL' && state === 'BOOT') { 
+            state = 'ES_WAIT'; inputBuffer = ''; updateScreen('ES--__'); return; 
+        }
+        
+        if(func === 'ENTER') {
+            if(state === 'ES_WAIT') {
+                if(inputBuffer === '07' || inputBuffer === '7') { 
+                    state = 'CTL1_MENU'; 
+                    inputBuffer = ''; 
+                    updateScreen('CtL1=_'); 
+                }
+            } 
+            else if(state === 'CTL2_READY') {
+                if(inputBuffer === '3') { 
+                    state = 'RUN_MODE'; 
+                    updateScreen('run CodE'); 
+                    document.getElementById('flow-log').innerHTML = '✅ <span class="flow-highlight">进入运行模式，请按全速或单步脉冲开始执行。</span><br>'; 
+                    updateRegisters();
+                }
+            } 
+            else if(state === 'DATA_IN') {
+                if(inputBuffer !== '') {
+                    AX = parseInt(inputBuffer, 16); 
+                    flashBox('box-ax');
+                    state = 'RUN_MODE'; updateScreen('run CodE');
+                    logFlow(`📥 数据录入完成: AX = <span class="flow-highlight">${AX.toString(16).toUpperCase().padStart(4,'0')}H</span>。`);
+                    uState = 'FETCH1'; // 输入完毕，准备执行下一条指令
+                    updateRegisters();
+                }
+            }
+        }
+    }
+
+    // --- CPU 微指令引擎 ---
+    function triggerPulse() {
+        if(state !== 'RUN_MODE') return;
+
+        switch(uState) {
+            case 'FETCH1': // PC -> AR, PC+1
+                flashBox('box-pc');
+                logFlow(`[取指] PC(${PC}) -> AR, PC+1`);
+                PC++;
+                uState = 'FETCH2';
+                break;
+                
+            case 'FETCH2': // RAM -> IR
+                flashBox('box-ir');
+                IR = RAM[PC-1];
+                logFlow(`[取指] RAM -> IR (取出 ${IR.toString(16).toUpperCase().padStart(4,'0')}H)`);
+                uState = 'DECODE';
+                break;
+                
+            case 'DECODE':
+                let op = IR & 0xFF; 
+                let opName = "";
+                if(op === 0x00) { uState = 'IN_WAIT'; opName = "IN"; }
+                else if(op === 0x21) { uState = 'MOV1'; opName = "MOV"; }
+                else if(op === 0x10) { uState = 'ADD1'; opName = "ADD"; }
+                else if(op === 0x50) { uState = 'ROL1'; opName = "ROL"; }
+                else if(op === 0x60) { uState = 'ROR1'; opName = "ROR"; }
+                else if(op === 0x30) { uState = 'OUT1'; opName = "OUT"; }
+                else if(op === 0x40) { uState = 'JMP1'; opName = "JMP"; }
+                else { logFlow(`❌ 异常指令：${op.toString(16)}H，已停机。`); stopAutoRun(); break; }
+                
+                logFlow(`[译码] 识别出指令：<span class="flow-warn">${opName}</span>`);
+                break;
+
+            case 'IN_WAIT':
+                state = 'DATA_IN'; inputBuffer = ''; updateScreen('dAtA'); 
+                logFlow(`🔴 <span class="flow-warn">请在数字键盘输入 8000 (并按确认)！</span>`); 
+                break;
+
+            case 'MOV1': 
+                flashBox('box-pc'); logFlow(`[MOV] PC(${PC}) -> AR, PC+1`); PC++; uState = 'MOV2'; break;
+            case 'MOV2':
+                flashBox('box-bx'); BX = RAM[PC-1]; logFlow(`[MOV] RAM -> BX (立即数 ${BX.toString(16).toUpperCase().padStart(4,'0')}H)`); uState = 'FETCH1'; break;
+
+            case 'ROL1': 
+                flashBox('box-sreg'); SREG = AX; logFlow(`[ROL] <span class="flow-shift">AX -> SREG</span> (放入移位器)`); uState = 'ROL2'; break;
+            case 'ROL2': 
+                flashBox('box-sreg');
+                let msb = (SREG >> 15) & 1;
+                SREG = ((SREG << 1) & 0xFFFF) | msb;
+                logFlow(`[ROL] <span class="flow-warn">SREG 循环左移 1 位！</span>`); uState = 'ROL3'; break;
+            case 'ROL3': 
+                flashBox('box-ax'); AX = SREG; logFlow(`[ROL] <span class="flow-shift">SREG -> AX</span> (结果送回累加器)`); uState = 'FETCH1'; break;
+
+            case 'ADD1': 
+                flashBox('box-ax'); flashBox('box-bx');
+                AX = (AX + BX) & 0xFFFF; logFlow(`[ADD] AX + BX -> AX`); uState = 'FETCH1'; break;
+
+            case 'ROR1': 
+                flashBox('box-sreg'); SREG = AX; logFlow(`[ROR] <span class="flow-shift">AX -> SREG</span> (放入移位器)`); uState = 'ROR2'; break;
+            case 'ROR2': 
+                flashBox('box-sreg');
+                let lsb = SREG & 1;
+                SREG = (SREG >> 1) | (lsb << 15);
+                logFlow(`[ROR] <span class="flow-warn">SREG 循环右移 1 位！</span>`); uState = 'ROR3'; break;
+            case 'ROR3': 
+                flashBox('box-ax'); AX = SREG; logFlow(`[ROR] <span class="flow-shift">SREG -> AX</span> (结果送回累加器)`); uState = 'FETCH1'; break;
+
+            case 'OUT1':
+                DISP = AX; logFlow(`[OUT] 🌟 <span class="flow-warn">AX -> LED数码管输出</span>`); uState = 'FETCH1'; break;
+
+            case 'JMP1':
+                flashBox('box-pc'); logFlow(`[JMP] 取跳转地址...`); PC++; uState = 'JMP2'; break;
+            case 'JMP2':
+                flashBox('box-pc'); PC = RAM[PC-1]; logFlow(`[JMP] 🔁 PC 更新，程序跳转至 ${PC.toString(16).toUpperCase().padStart(2,'0')}H`); uState = 'FETCH1'; break;
+        }
+        updateRegisters();
+    }
+
+    function toggleAutoRun() {
+        if(state !== 'RUN_MODE') return;
+        const btn = document.getElementById('run-btn');
+        if(autoRunInterval) {
+            stopAutoRun();
+        } else {
+            btn.innerHTML = "⏸️ 暂停 (PAUSE)";
+            btn.style.background = "#ef4444";
+            autoRunInterval = setInterval(triggerPulse, 500);
+        }
+    }
+    
+    function stopAutoRun() {
+        if(autoRunInterval) { clearInterval(autoRunInterval); autoRunInterval = null; }
+        const btn = document.getElementById('run-btn');
+        btn.innerHTML = "🔄 全速运行 (RUN)";
+        btn.style.background = "#8b5cf6";
+    }
+</script>
+
+</body>
+</html>
